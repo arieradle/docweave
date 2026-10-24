@@ -11,6 +11,10 @@
     "ghcr.io/devcontainers/features/python",
     "ghcr.io/anthropics/devcontainer-features/claude-code"
   ],
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
   "customizations": {
     "vscode": {
       "extensions": [
