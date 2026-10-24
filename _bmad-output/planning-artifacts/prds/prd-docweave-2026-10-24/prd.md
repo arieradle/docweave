@@ -16,7 +16,7 @@ The existing option, `leam-tech/frappe_graphql`, appears stale and lacks Frappe 
 ## 2. Target User
 ### 2.1 Jobs To Be Done
 - **Frontend/mobile developer:** fetch a document graph (parent, links, child tables) in one request, selecting only the fields needed.
-- **Integrator:** query and update Frappe data with typed filters and predictable pagination.
+- **Integrator:** query (and in v2, update) Frappe data with typed filters and predictable pagination.
 - **AI-agent/tool builder:** discover the schema by introspection and run bounded queries that cost few tokens.
 - **Frappe administrator:** choose which DocTypes are exposed and trust that Frappe permissions still hold.
 
@@ -27,12 +27,12 @@ Frappe v15 or older installs (v16 only); anonymous public access.
 - **UJ-1.** Dana, a mobile developer, loads a Sales Order screen. One query returns the order, its customer name, its item rows and a masked credit limit (`null` plus a `MASKED` error). She renders the screen from one round trip.
 - **UJ-2.** Raj, an administrator, installs DocWeave, opens DocWeave Settings, enables the endpoint and adds Sales Order and Customer. Nothing else is reachable.
 - **UJ-3.** Dana pages through 5,000 Sales Orders where the user can see only a few. Pages come back short with a continuation cursor; the client keeps going and never loops.
-- **UJ-4.** Dana updates a Sales Order's delivery date with a mutation. A user without write permission gets a permission error.
+- **UJ-4 (v2).** Dana updates a Sales Order's delivery date with a mutation. A user without write permission gets a permission error.
 
 ## 3. Glossary
 - **Exposed DocType** — a DocType listed in DocWeave Settings; the only DocTypes present in the schema.
 - **Candidate** — a record scanned by a query before the permission check.
-- **Scan budget** — the maximum candidates examined per request.
+- **Scan budget** — the maximum candidates examined per list field in a request.
 - **Cursor** — signed, opaque token for the last scanned candidate, bound to user and filter.
 - **Masked field** — a field whose value Frappe hides from the current user.
 - **Planner** — component that batches data loads before GraphQL execution.
@@ -55,8 +55,9 @@ Frappe v15 or older installs (v16 only); anonymous public access.
 - **FR-9:** The cursor marks the last scanned candidate, is signed and bound to user and filter, and is returned even on an empty page that has more candidates.
 - **FR-10:** `hasNextPage` is true when candidates remain and false only when exhaustion is known. This is documented as a conservative signal.
 
-### 4.4 Writes
-- **FR-11:** A client can create, update and delete Exposed DocTypes through mutations that apply Frappe's own write permissions and validation. Updates change only the fields sent, so values hidden from the user are never overwritten. A request's mutations succeed or fail together. Realizes UJ-4. `[ASSUMPTION: submit/cancel/amend and bulk operations are later]`
+### 4.4 Writes (v2)
+*v1 is read-only. Mutations ship in v2.*
+- **FR-11 (v2):** A client can create, update and delete Exposed DocTypes through mutations that apply Frappe's own write permissions and validation. Updates change only the fields sent, so values hidden from the user are never overwritten. A request's mutations succeed or fail together. Realizes UJ-4. `[ASSUMPTION: submit/cancel/amend and bulk operations are later]`
 
 ### 4.5 MCP-readiness (secondary)
 *Low-cost design constraints so third parties can build MCP servers on DocWeave. They never take priority over 4.1–4.4. DocWeave ships no MCP server.*

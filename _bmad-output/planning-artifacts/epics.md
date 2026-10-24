@@ -26,7 +26,7 @@ This document breaks the DocWeave PRD and Architecture Spine into implementable 
 - FR-8: Cursor pagination. Hitting the scan budget returns a short page with `scanLimitReached` and a continuation cursor.
 - FR-9: The cursor marks the last scanned candidate, is bound to user and filter, and is issued even for empty pages.
 - FR-10: `hasNextPage` is a conservative signal: `false` only when candidates are known to be exhausted.
-- FR-11: Create, sparse update and delete mutations, with Frappe permissions and validation, all or nothing per request.
+- FR-11 (v2): Create, sparse update and delete mutations, with Frappe permissions and validation, all or nothing per request.
 - FR-12: Introspection works, with depth and cost limits.
 - FR-13: Descriptions come from Frappe labels and help text.
 - FR-14: Actionable messages and machine-readable error codes.
@@ -44,7 +44,8 @@ This document breaks the DocWeave PRD and Architecture Spine into implementable 
 From the Architecture Spine:
 - Hexagonal layout with a dependency-free `core` shared kernel (AD-1).
 - Two-phase execution with response-key resolvers (AD-3).
-- A permission projection, so `has_permission` runs without per-candidate loads (AD-4).
+- Full Frappe parity for document checks (`get_doc` plus `has_permission` per candidate, bounded by the scan budget) and a parity test (AD-4).
+- A port contract defined in `core` (AD-16), and a settings reader inside the adapter.
 - Derived loads only from readable, unmasked fields (AD-6).
 - Child rows bound to `parentfield` (AD-7).
 - Fernet-encrypted keyset cursor (AD-8).
@@ -74,7 +75,7 @@ None. DocWeave is API-only.
 | FR-8 | 2.2, 2.3 |
 | FR-9 | 2.2, 2.3 |
 | FR-10 | 2.3 |
-| FR-11 | 3.1, 3.2, 3.3, 3.4 |
+| FR-11 | v2: 3.1, 3.2, 3.3, 3.4 |
 | FR-12 | 2.4 |
 | FR-13 | 1.3 |
 | FR-14 | 1.5, 2.4, 4.2 |
@@ -90,7 +91,7 @@ An administrator installs DocWeave and exposes Sales Order and Customer. A clien
 Clients list documents with typed filters and ordering. They page through large, mostly unauthorized sets without stalling, skipping or leaking, and every request stays within limits.
 **FRs covered:** FR-4, FR-8, FR-9, FR-10, FR-12, FR-14
 
-### Epic 3: Writing data
+### Epic 3: Writing data (v2, not in v1)
 Clients create, update and delete documents through mutations that respect Frappe permissions, validation and hidden values, all or nothing per request.
 **FRs covered:** FR-11
 
@@ -213,9 +214,13 @@ So that I get exactly the fields I select, with Frappe permissions enforced.
 **When** they query SO-1
 **Then** `salesOrder` is `null` with code `NOT_FOUND`, the same response as for a name that does not exist
 
-**Given** a `has_permission` hook that reads a non-selected field
-**When** the check runs
-**Then** the hook sees that field from the permission projection, and the query count stays constant (no per-document load)
+**Given** a user restricted by a User Permission on a child-row Link (e.g. Warehouse on items), a shared document, or an `if_owner` rule
+**When** they query the Sales Order
+**Then** the result equals what Frappe's own `has_permission` decides (parity test), and the returned values come from the masked query row, not the loaded document
+
+**Given** a user with only `select` permission on Sales Order
+**When** they query any Sales Order
+**Then** they get `NOT_FOUND` without any candidate scan
 
 **And** `core/types.py` defines the sentinels, `ErrorCode`, `Row` and `LoadRequest`, and `adapter/errors.py` maps Frappe exceptions per AD-15
 
@@ -265,7 +270,7 @@ So that my screen loads fast without leaking data I can't see.
 **When** the query executes
 **Then** each alias resolves its own result (response-key resolution)
 
-**And** `test_query_count.py` asserts a constant query count when fetching 1 versus 50 orders with customer and items
+**And** `test_query_count.py` asserts that link and child queries stay constant from 1 to 50 orders, with only the permission checks growing per candidate
 
 ## Epic 2: Listing, filtering and safe pagination
 
@@ -279,7 +284,7 @@ So that I can fetch exactly the documents I need.
 
 **Acceptance Criteria:**
 
-**Given** `salesOrders(filter: { status: { in: ["Draft","To Deliver"] }, or: [...] }, orderBy: [{ field: transactionDate, direction: DESC }])`
+**Given** `salesOrderList(filter: { status: { in: ["Draft","To Deliver"] }, or: [...] }, orderBy: { field: transactionDate, direction: DESC })`
 **When** it executes
 **Then** the planner produces a `FilterIR` and only the adapter translates it into qb criteria
 
@@ -303,7 +308,7 @@ So that I can page reliably without seeing anything I'm not allowed to.
 
 **Acceptance Criteria:**
 
-**Given** `salesOrders(first: 20)`
+**Given** `salesOrderList(first: 20)`
 **When** it returns
 **Then** I get `edges { cursor node }` and `pageInfo { hasNextPage endCursor scanLimitReached }`
 
@@ -339,13 +344,13 @@ So that paging always makes progress and never errors on the scan limit.
 **When** it returns
 **Then** `scanLimitReached: true` and `hasNextPage: true`, the cursor points at the last permission-checked candidate (not merely fetched), and a cursor is issued even when `edges` is empty
 
-**Given** two connections in one request
-**When** the per-request `max_total_candidates` is reached
-**Then** every unfinished connection reports `scanLimitReached: true` with a valid cursor
+**Given** two aliased list fields in one request
+**When** each scans candidates
+**Then** each has its own scan budget, and one exhausting its budget does not affect the other
 
 **Given** the candidates are exhausted
 **When** the last page returns
-**Then** `hasNextPage` is `false`
+**Then** `hasNextPage` is `false` and `endCursor` is `null`
 
 ### Story 2.4: Depth and cost limits
 
@@ -367,7 +372,9 @@ So that clients and AI agents can't run unbounded queries.
 **When** it is planned
 **Then** it fails with `COST_LIMIT` before any adapter call, and the message states the limit and the estimated cost
 
-## Epic 3: Writing data
+## Epic 3: Writing data (v2, not in v1)
+
+*v1 is read-only. These stories are kept as the v2 backlog.*
 
 Clients create, update and delete documents through mutations that respect Frappe permissions, validation and hidden values, all or nothing per request.
 
