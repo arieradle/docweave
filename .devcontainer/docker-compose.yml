@@ -1,0 +1,56 @@
+# Devcontainer services for DocWeave development.
+# Modelled on frappe/frappe_docker devcontainer-example/docker-compose.yml.
+# Development credentials only: never reuse these values outside this container.
+name: docweave
+
+services:
+  app:
+    # mcr.microsoft.com/devcontainers/base:ubuntu26.04, pinned by digest so a
+    # rebuild cannot silently change the system Python the bench venv uses.
+    image: mcr.microsoft.com/devcontainers/base:ubuntu26.04@sha256:91eff046d5c12318fc98e59258982b87ba896c467427ed8b5dab5a02107a5db7
+    command: sleep infinity
+    volumes:
+      - ..:/workspaces/docweave:cached
+      - frappe-bench:/home/vscode/frappe-bench
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+
+  mariadb:
+    image: mariadb:11.8
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: "123"
+      MARIADB_ROOT_PASSWORD: "123"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  redis-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  redis-queue:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-queue-data:/data
+
+volumes:
+  frappe-bench:
+  mariadb-data:
+  redis-queue-data:

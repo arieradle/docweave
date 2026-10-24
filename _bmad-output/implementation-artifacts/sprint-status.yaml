@@ -1,0 +1,73 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 10-24-2026 21:30
+last_updated: 10-24-2026 22:40
+project: docweave
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-0: in-progress
+  0-0-development-environment-with-frappe-v16-and-erpnext: in-progress
+  0-1-spike-time-the-per-candidate-permission-check-ad-4: backlog
+  0-2-spike-verify-masking-at-runtime-and-time-its-cost-ad-5: backlog
+  0-3-fast-start-for-new-codespaces: backlog
+  epic-0-retrospective: optional
+
+  epic-1: backlog
+  1-1-installable-app-with-ci-and-boundary-guard: backlog
+  1-2-docweave-settings-and-the-access-gate: backlog
+  1-3-schema-generation-from-exposed-doctypes: backlog
+  1-4-schema-cache-and-invalidation: backlog
+  1-5-authorized-single-document-read: backlog
+  1-6-masking-and-field-level-readability: backlog
+  1-7-links-and-child-tables-in-one-request-without-n-1: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-typed-filters-and-ordering: backlog
+  2-2-keyset-connections-with-encrypted-cursors: backlog
+  2-3-scan-budget-and-short-pages: backlog
+  2-4-depth-and-cost-limits: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-create-mutations-with-the-input-contract: backlog
+  3-2-sparse-update-including-child-rows: backlog
+  3-3-delete-and-submitted-documents: backlog
+  3-4-all-or-nothing-mutation-requests: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-sdl-export: backlog
+  4-2-error-contract-and-request-logging: backlog
+  4-3-upgrade-and-uninstall-lifecycle: backlog
+  epic-4-retrospective: optional

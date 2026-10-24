@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Frappe bench (lives in the frappe-bench volume; ignored in case one lands in the workspace)
+/frappe-bench/
+/sites/
+/logs/

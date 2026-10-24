@@ -83,6 +83,11 @@ None. DocWeave is API-only.
 
 ## Epic List
 
+### Epic 0: De-risking spikes
+Measure the two riskiest architecture bets on a real Frappe v16 + ERPNext site before building on them: the cost of AD-4's per-candidate document check, and whether AD-5's masking behaves at runtime as the source suggests. Each spike ends in a written report and a keep / amend decision for its AD. Spike code is throwaway and is not shipped.
+**FRs covered:** none directly. De-risks FR-5, FR-6, FR-7, FR-8 and NFR-2.
+Story 0.0 first provides the development environment (Frappe v16.53.0 bench with ERPNext v16.52.1, MariaDB 11.8 and Redis) that the spikes and every later story run on.
+
 ### Epic 1: Secure document reads, starting with the Sales Order slice
 An administrator installs DocWeave and exposes Sales Order and Customer. A client then reads one Sales Order, with its customer and item rows, in a single request. Permissions and masking are exactly right, and there is no N+1.
 **FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-13, FR-14 (partial)
@@ -98,6 +103,114 @@ Clients create, update and delete documents through mutations that respect Frapp
 ### Epic 4: Integration readiness and operations
 Integrators and tool builders (including MCP authors) can export the schema and rely on stable errors. Administrators can observe, upgrade and uninstall DocWeave cleanly.
 **FRs covered:** FR-14, FR-15
+
+## Epic 0: De-risking spikes
+
+Measure the two riskiest architecture bets on a real Frappe v16 + ERPNext site before building on them. Spike code lives in `spikes/` (not in the app package) and is not shipped. Reports go to `_bmad-output/implementation-artifacts/spikes/`.
+
+### Story 0.0: Development environment with Frappe v16 and ERPNext
+
+As the DocWeave developer,
+I want the devcontainer to provide a working Frappe v16.53.0 bench with ERPNext v16.52.1, MariaDB 11.8 and Redis,
+So that the spikes and every later story run against the exact target platform, reproducibly.
+
+**Acceptance Criteria:**
+
+**Given** a fresh clone opened in the devcontainer
+**When** the container is built and its setup finishes
+**Then** MariaDB 11.8 and Redis run as Compose services, and `bench`, `uv` and rtk are on the PATH without manual steps
+
+**Given** the finished setup
+**When** I run `bench --version` and list the apps of site `dev.localhost`
+**Then** frappe-bench is 5.31.0, and the site has Frappe v16.53.0 and ERPNext v16.52.1 installed
+
+**Given** the running bench
+**When** I start it with `bench start` and log in as Administrator
+**Then** the Frappe desk loads and a Sales Order can be opened
+
+**Given** the container is rebuilt
+**When** setup runs again
+**Then** the bench and databases persist in volumes and are not reinstalled
+
+**And** the README documents how to open, rebuild and reset the environment
+
+### Story 0.1: Spike: time the per-candidate permission check (AD-4)
+
+As the DocWeave developer,
+I want to measure what loading each candidate with `frappe.get_doc` and checking `frappe.has_permission` costs,
+So that I know whether AD-4's full-parity check is fast enough, or must change before Epic 1.
+
+**Acceptance Criteria:**
+
+**Given** a v16.53.0 site with ERPNext v16.52.1 and generated fixtures: 2,000 Sales Orders with 5, 20 and 100 item rows (three sets), and Customers
+**And** test users: a System Manager, a user restricted by a User Permission on Customer, a user restricted by a User Permission on Warehouse (child-row link), a user with `if_owner` read, and a user who sees most orders only through DocShare
+**When** the spike script runs the check for each user over 100 and over 2,000 candidates, with a cold and a warm cache
+**Then** the report records, per user and per item count:
+- p50 and p95 time per candidate, in ms
+- database queries per candidate, from Frappe's query counter
+- total time for a 100-candidate page and for a full 2,000-candidate scan budget
+
+**Given** the same fixtures
+**When** the spike times two baselines: Frappe's own `frappe.get_list` for the same users and filters, and `has_permission` called on a document built from the row with no load (the rejected shortcut)
+**Then** the report shows the overhead of AD-4 relative to both, and confirms on these fixtures whether the shortcut gives different allow/deny answers than the full check
+
+**Given** the measurements
+**When** they are compared with the target: DocWeave must be on par with or faster than Frappe's REST API returning the same data (a `/api/resource` list call plus one `GET /api/resource/<doctype>/<name>` per document, which itself loads each document and checks `has_permission`), at p95 with a warm cache, for a 100-document page
+**Then** the report ends with one decision for AD-4, keep or amend. An amend names its option: a lower default scan budget, the hybrid check (full load only for DocTypes with hooks or child-row User Permission links), or per-request preloading of DocShare and child rows.
+
+**And** the report records the exact Frappe and ERPNext tags, MariaDB version, hardware, and how to rerun the spike
+
+### Story 0.2: Spike: verify masking at runtime and time its cost (AD-5)
+
+As the DocWeave developer,
+I want to confirm on the real v16 release how masking behaves through `frappe.qb.get_query`, and what it costs,
+So that AD-5 rests on observed behaviour, not just source reading.
+
+**Acceptance Criteria:**
+
+**Given** masking enabled on Customer fields of type Data, Currency, Date and Int, and on Sales Order Item fields of type Currency and Data, for a role the test user holds without unmask
+**When** the spike reads them with `get_query(..., ignore_permissions=False).run()`, including child rows with `parent_doctype="Sales Order"`
+**Then** the report records, per fieldtype, whether the value is masked and the exact placeholder returned. It confirms whether the child-table masking with parent context works on v16.53.0, given Frappe's documented bugs there.
+
+**Given** the same query with `ignore_permissions=True` (the Frappe default)
+**When** it runs
+**Then** the report confirms that values come back unmasked, which proves why AD-2's chokepoint is required
+
+**Given** the user is given, and then loses, a role with unmask rights
+**When** the spike reads `meta.get_masked_fields(...)` and runs the query again after each change, without clearing caches
+**Then** the report states whether Frappe's per-user masked-field cache goes stale, and whether AD-5's fresh per-request computation corrects it
+
+**Given** a field above the user's permlevel included in `fields`
+**When** `get_query` runs with `ignore_permissions=False`
+**Then** the report records whether the field is silently dropped, nulled or raises an error. AD-5's `FORBIDDEN` handling depends on this.
+
+**Given** 2,000 Customers
+**When** the spike times queries with and without masked fields, and times AD-5's fresh masked-set computation per request
+**Then** the report records the masking overhead in ms (p50 and p95)
+
+**And** the report ends with one decision for AD-5, keep or amend, and lists any architecture text that must change
+
+### Story 0.3: Fast start for new codespaces
+
+As the DocWeave developer,
+I want a brand-new codespace to start with Frappe, ERPNext and the dev site already set up,
+So that recreating a codespace takes minutes instead of a full install.
+
+**Acceptance Criteria:**
+
+**Given** a prebuilt dev image published to GitHub Container Registry, containing the bench with Frappe v16.53.0 and ERPNext v16.52.1 and their Python and Node dependencies
+**When** the devcontainer starts
+**Then** it uses that image, and setup does not clone or install Frappe or ERPNext
+
+**Given** Codespaces prebuilds enabled for `main`, with site creation in `onCreateCommand`
+**When** a new codespace is created from a prebuild
+**Then** `dev.localhost` with ERPNext is ready without running the site install again; if the prebuild snapshot lacks the database, setup creates or restores the site automatically
+
+**Given** a change to the pinned Frappe or ERPNext version
+**When** it is merged
+**Then** a GitHub Actions workflow rebuilds and publishes the image with tags naming both versions, and prebuilds refresh
+
+**And** the README documents enabling prebuilds in the repository settings and the image's access settings for Codespaces
 
 ## Epic 1: Secure document reads, starting with the Sales Order slice
 
