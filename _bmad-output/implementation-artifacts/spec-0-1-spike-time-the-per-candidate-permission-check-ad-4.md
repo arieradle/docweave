@@ -2,7 +2,8 @@
 title: 'Spike: time the per-candidate permission check (AD-4)'
 type: 'chore'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_commit: '59aa1e60cd0eb66dd2390f6399702f8949f17f03'
 route: 'dispatch'
 review_loop_iteration: 0
 context:
