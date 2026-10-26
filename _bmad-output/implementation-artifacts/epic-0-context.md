@@ -9,7 +9,8 @@ Measure the two riskiest architecture bets on a real Frappe v16 + ERPNext site b
 ## Stories
 
 - Story 0.1: Spike: time the per-candidate permission check
-- Story 0.2: Spike: verify masking at runtime and time its cost
+- Story 0.2: Re-measure AD-4 with the review fixes from Spike 0.1
+- Story 0.3: Spike: verify masking at runtime and time its cost
 
 ## Requirements & Constraints
 
@@ -29,5 +30,5 @@ Measure the two riskiest architecture bets on a real Frappe v16 + ERPNext site b
 ## Cross-Story Dependencies
 
 - Both spikes need a running Frappe v16.53.0 + ERPNext v16.52.1 site, which the devcontainer does not yet provide.
-- Story 0.1 decides whether the architecture's per-candidate check (AD-4) stands. Story 0.2 decides the same for masking (AD-5). Epic 1 stories 1.5, 1.6 and 1.7 build on both decisions.
+- Story 0.1 decides whether the architecture's per-candidate check (AD-4) stands. Story 0.2 measures the scan budget Spike 0.1 proposed, at the p95 target, and confirms or replaces Spike 0.1's amendment. Story 0.3 decides the same for masking (AD-5). Epic 1 stories 1.5, 1.6 and 1.7 build on both decisions.
 - The two spikes can share one fixture generator and site.

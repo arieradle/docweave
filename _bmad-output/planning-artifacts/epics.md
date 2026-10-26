@@ -160,7 +160,27 @@ So that I know whether AD-4's full-parity check is fast enough, or must change b
 
 **And** the report records the exact Frappe and ERPNext tags, MariaDB version, hardware, and how to rerun the spike
 
-### Story 0.2: Spike: verify masking at runtime and time its cost (AD-5)
+### Story 0.2: Re-measure AD-4 with the review fixes from Spike 0.1
+
+As the DocWeave architect,
+I want the scan budget proposed by Spike 0.1 measured directly at the p95 target,
+So that the AD-4 amendment rests on measurements, not on extrapolation.
+
+**Acceptance Criteria:**
+
+**Given** the Spike 0.1 fixtures and harness with the review fixes already in `spikes/`: a fill-one-page pass at scan budgets 200 and 2,000, the REST name and allow/deny comparison, gunicorn workers restarted before each cold REST trial, and ping p95 in the DocWeave estimate
+**When** the harness runs on the same versions and hardware
+**Then** the report shows, per user and item-count set, the measured p95 time to fill one 100-document page at each budget against REST's page p95, plus how many candidates were scanned and whether the page came back short
+
+**Given** those measurements
+**When** the budget of 200 fails the target for some case (for example the warehouse-restricted user with 100-item orders, estimated at about 4.2 s at p95 against REST's 2.2 s)
+**Then** the report names the budget that meets the target, or a different amendment (preloading or the hybrid check), and updates Spike 0.1's decision
+
+**And** the REST comparison confirms that REST and the full check return the same names with the same allow/deny answers, or the report lists the differences
+
+**And** the report states that a lower budget bounds the cost of one request, not of walking the whole result set, and gives the number of requests a client needs at low pass rates
+
+### Story 0.3: Spike: verify masking at runtime and time its cost (AD-5)
 
 As the DocWeave developer,
 I want to confirm on the real v16 release how masking behaves through `frappe.qb.get_query`, and what it costs,
@@ -190,7 +210,7 @@ So that AD-5 rests on observed behaviour, not just source reading.
 
 **And** the report ends with one decision for AD-5, keep or amend, and lists any architecture text that must change
 
-### Story 0.3: Fast start for new codespaces
+### Story 0.4: Fast start for new codespaces
 
 As the DocWeave developer,
 I want a brand-new codespace to start with Frappe, ERPNext and the dev site already set up,

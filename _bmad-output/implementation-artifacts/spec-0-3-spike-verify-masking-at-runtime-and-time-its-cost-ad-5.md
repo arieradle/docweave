@@ -54,7 +54,7 @@ context:
 - [ ] `spikes/masking_check.py` -- run each matrix scenario and record the raw values returned per fieldtype, for parent and child rows -- runtime evidence for AD-5
 - [ ] `spikes/masking_check.py` -- grant and revoke the unmask role without clearing caches; compare `get_masked_fields` with a fresh `get_permlevel_access("mask", ...)` computation and with query results -- confirms whether AD-5's fresh computation is needed
 - [ ] `spikes/masking_check.py` -- over 2,000 Customers, time queries with and without masked fields, and time the fresh masked-set computation -- masking overhead
-- [ ] `_bmad-output/implementation-artifacts/spikes/spike-0-2-masking.md` -- report: environment, matrix results, timings, decision, architecture text to change -- the deliverable
+- [ ] `_bmad-output/implementation-artifacts/spikes/spike-0-3-masking.md` -- report: environment, matrix results, timings, decision, architecture text to change -- the deliverable
 
 **Acceptance Criteria:**
 - Given each matrix scenario, when the harness runs, then the report records the observed behaviour and exact values or exceptions.

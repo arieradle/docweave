@@ -7,12 +7,15 @@ For each spike user and item-count set it measures, cold and warm:
 - shortcut: `has_permission` on a document built from the query row, no load
 - preload (amendment option): parents and child tables loaded per batch of 100
   candidates, complete documents built in memory, then `has_permission`
+- fill: what one DocWeave page costs, checking candidates until 100 pass or
+  the scan budget (200 or 2,000) runs out
 - `frappe.get_list` for the same page, in process
 - REST over HTTP (the pass/fail target): `/api/resource` list plus one
   `GET /api/resource/Sales Order/<name>` per document, against gunicorn
 
 "cold" means the site's Redis cache and the in-process caches are cleared before
-the pass; "warm" passes follow an unmeasured warm-up pass. MariaDB's buffer
+the pass (for REST, gunicorn is also HUPed so its workers start fresh); "warm"
+passes follow an unmeasured warm-up pass. MariaDB's buffer
 pool is warm in both. Results go to spikes/results/ as JSON and Markdown tables.
 
 Needs the fixtures (spikes/fixtures.py) and gunicorn (gthread) serving the bench on
@@ -24,6 +27,7 @@ import argparse
 import json
 import os
 import platform
+import signal
 import statistics
 import subprocess
 import sys
@@ -42,6 +46,9 @@ PAGE = 100
 HTTP_TIMEOUT = 60  # seconds; a stuck server fails the run instead of hanging it
 REST_SERVER = "gunicorn 23.0.0, gthread, 2 workers x 4 threads, --preload"
 SCAN_BUDGET = 2000
+FILL_BUDGETS = (200, 2000)  # candidate budgets for filling one page of PAGE documents
+FILL_TRIALS = (3, 10)  # (cold, warm)
+GUNICORN_PID = Path("/home/vscode/frappe-bench/spike-gunicorn.pid")  # written by serve_rest.sh
 
 
 def pct(values, p):
@@ -122,6 +129,31 @@ def full_check_pass(user, size, limit):
 		"queries": q[0],
 		"candidates": len(rows),
 		"allowed": allowed,
+	}
+
+
+def fill_pass(user, size, budget):
+	"""What a DocWeave page costs: check candidates in order until PAGE are
+	allowed or the budget is spent (a short page)."""
+	t0 = time.perf_counter()
+	rows = candidates(user, size, budget, ["name"])
+	scanned = allowed = 0
+	per = []
+	with count_queries() as q:
+		for row in rows:
+			s = time.perf_counter()
+			doc = frappe.get_doc("Sales Order", row.name)
+			allowed += bool(frappe.has_permission("Sales Order", "read", doc=doc, user=user))
+			per.append((time.perf_counter() - s) * 1000)
+			scanned += 1
+			if allowed == PAGE:
+				break
+	return {
+		"total_ms": (time.perf_counter() - t0) * 1000,
+		"per_ms": per,
+		"queries": q[0],
+		"scanned": scanned,
+		"returned": allowed,
 	}
 
 
@@ -247,6 +279,7 @@ class Rest:
 			"per_ms": per,
 			"queries": 0,
 			"allowed": allowed,
+			"names": names,
 		}
 
 	def ping_ms(self, n=50):
@@ -258,15 +291,30 @@ class Rest:
 		return summary(out)
 
 
+def restart_rest_workers(base, site):
+	"""HUP gunicorn so it forks fresh workers: their in-process caches start cold."""
+	os.kill(int(GUNICORN_PID.read_text().strip()), signal.SIGHUP)
+	time.sleep(2)
+	for _ in range(60):
+		try:
+			if requests.get(f"{base}/api/method/ping", headers={"Host": site}, timeout=5).ok:
+				return
+		except requests.RequestException:
+			pass
+		time.sleep(0.5)
+	raise RuntimeError("gunicorn did not come back after HUP")
+
+
 def rest_trials(base, site, user, size, limit, cold_trials, warm_trials):
-	client = Rest(base, site, user)
 	cold = []
 	for _ in range(cold_trials):
 		new_request(site, "Administrator", cold=True)  # flush Redis for the site
-		cold.append(client.page(size, limit))
+		restart_rest_workers(base, site)
+		cold.append(Rest(base, site, user).page(size, limit))
+	client = Rest(base, site, user)
 	client.page(size, limit)  # warm-up
 	warm = [client.page(size, limit) for _ in range(warm_trials)]
-	return cold, warm, client
+	return cold, warm
 
 
 # --- Environment and output --------------------------------------------------
@@ -319,17 +367,17 @@ def tables(res):
 				f"{fmt(a['queries_per_candidate'], 1)} | {fmt(a['candidate_query_ms']['p95'], 1)} | "
 				f"{fmt(a['page_total_ms']['p95'], 0)} |"
 			)
-	lines.append("\n### Target: 100-document page, p95 warm (ms)\n")
+	lines.append(f"\n### Target: 100-document page, p95 warm (ms, {res['trials'][str(PAGE)][1]} trials)\n")
 	lines.append(
 		"| User | Items | REST list + GETs | DocWeave check + 1 round trip | Ratio | get_list only "
-		"| Shortcut page | Preload page |"
+		"| Shortcut page | Preload page | REST vs full: different names | REST vs full: allow/deny disagreements |"
 	)
-	lines.append("|---|---|---|---|---|---|---|---|")
+	lines.append("|---|---|---|---|---|---|---|---|---|---|")
 	for c in res["comparison"]:
 		lines.append(
 			f"| {c['user']} | {c['items']} | {fmt(c['rest_p95'], 0)} | {fmt(c['docweave_p95'], 0)} | "
 			f"{fmt(c['ratio'])} | {fmt(c['get_list_p95'], 1)} | {fmt(c['shortcut_p95'], 0)} | "
-			f"{fmt(c['preload_p95'], 0)} |"
+			f"{fmt(c['preload_p95'], 0)} | {c['rest_name_mismatch']} | {c['rest_allow_disagreements']} |"
 		)
 	lines.append("\n### REST per-document GET (ms)\n")
 	lines.append("| User | Items | Cache | p50 | p95 | Page p95 |")
@@ -345,16 +393,31 @@ def tables(res):
 	lines.append(
 		"| User | Items | Candidates | Full allowed | Shortcut allowed | Shortcut disagreements "
 		"| Preload allowed | Preload disagreements | Full p50/p95 ms | Shortcut p50/p95 ms "
-		"| Preload p50/p95 ms | Full scan ms | Preload scan ms |"
+		"| Preload p50/p95 ms | Full scan ms | Preload scan ms | Full / preload queries per candidate |"
 	)
-	lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+	lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
 	for p in res["parity"]:
 		lines.append(
 			f"| {p['user']} | {p['items']} | {p['candidates']} | {p['full_allowed']} | {p['shortcut_allowed']} | "
 			f"{p['disagreements']} | {p['preload_allowed']} | {p['preload_disagreements']} | "
 			f"{fmt(p['full_p50'])} / {fmt(p['full_p95'])} | {fmt(p['shortcut_p50'])} / {fmt(p['shortcut_p95'])} | "
 			f"{fmt(p['preload_p50'])} / {fmt(p['preload_p95'])} | {fmt(p['full_scan_ms'], 0)} | "
-			f"{fmt(p['preload_scan_ms'], 0)} |"
+			f"{fmt(p['preload_scan_ms'], 0)} | {fmt(p['full_queries_per_candidate'], 1)} / "
+			f"{fmt(p['preload_queries_per_candidate'], 2)} |"
+		)
+	lines.append(
+		f"\n### Filling one page of {PAGE} documents (cold {FILL_TRIALS[0]} / warm {FILL_TRIALS[1]} trials)\n"
+	)
+	lines.append(
+		"| User | Items | Budget | Scanned | Returned | Short page | Warm p50 ms | Warm p95 ms | Cold p95 ms "
+		"| REST page p95 ms | Warm p95 / REST |"
+	)
+	lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+	for f in res["fill"]:
+		lines.append(
+			f"| {f['user']} | {f['items']} | {f['budget']} | {f['scanned']} | {f['returned']} | "
+			f"{'yes' if f['returned'] < PAGE else 'no'} | {fmt(f['warm_p50'], 0)} | {fmt(f['warm_p95'], 0)} | "
+			f"{fmt(f['cold_p95'], 0)} | {fmt(f['rest_p95'], 0)} | {fmt(f['ratio'])} |"
 		)
 	return "\n".join(lines) + "\n"
 
@@ -378,11 +441,12 @@ def main():
 		res = json.loads(checkpoint.read_text())
 		ping = res["http_round_trip_ms"]
 	else:
-		res = {"env": environment(args.site), "trials": trials, "full": [], "rest": [], "comparison": [], "parity": []}
+		res = {"env": environment(args.site), "trials": {str(k): v for k, v in trials.items()}, "full": [], "rest": [], "comparison": [], "parity": [], "fill": []}
 		res["env"]["rest_server"] = REST_SERVER
 		ping = Rest(args.http, args.site, USERS["unrestricted"]).ping_ms()
 		res["http_round_trip_ms"] = ping
 	res.setdefault("done_users", [])
+	fill_trials = (1, 2) if args.quick else FILL_TRIALS
 
 	for key, user in USERS.items():
 		if key in res["done_users"]:
@@ -418,12 +482,13 @@ def main():
 							"preload_p50": pct(pl[0]["per_ms"], 50),
 							"preload_p95": pct(pl[0]["per_ms"], 95),
 							"preload_queries_per_candidate": pl[0]["queries"] / max(len(pre), 1),
+							"full_queries_per_candidate": warm[0]["queries"] / max(len(full), 1),
 							"full_scan_ms": statistics.fmean(p["total_ms"] for p in warm),
 							"preload_scan_ms": pl[0]["total_ms"],
 						}
 					)
 
-			rc, rw, _ = rest_trials(args.http, args.site, user, size, PAGE, *trials[PAGE])
+			rc, rw = rest_trials(args.http, args.site, user, size, PAGE, *trials[PAGE])
 			res["rest"].append({"user": key, "items": size, "cold": aggregate(rc), "warm": aggregate(rw)})
 
 			_, gl = run_trials(get_list_pass, args.site, user, size, PAGE, 0, trials[PAGE][1])
@@ -433,7 +498,33 @@ def main():
 				r for r in res["full"] if r["user"] == key and r["items"] == size and r["limit"] == PAGE
 			)["warm"]
 			rest_p95 = pct([p["total_ms"] for p in rw], 95)
-			dw_p95 = full_warm["page_total_ms"]["p95"] + ping["p50"]
+			dw_p95 = full_warm["page_total_ms"]["p95"] + ping["p95"]
+			# same data? REST list names vs get_query candidates, and allow/deny per name
+			new_request(args.site, user, cold=False)
+			full_page = full_check_pass(user, size, PAGE)
+			rest_page = rw[0]
+			name_mismatch = len(set(rest_page["names"]) ^ set(full_page["allowed"]))
+			allow_dis = sum(
+				rest_page["allowed"][n] != full_page["allowed"][n]
+				for n in set(rest_page["allowed"]) & set(full_page["allowed"])
+			)
+			for budget in FILL_BUDGETS:
+				fc, fw = run_trials(fill_pass, args.site, user, size, budget, *fill_trials)
+				fwp95 = pct([p["total_ms"] for p in fw], 95) + ping["p95"]
+				res["fill"].append(
+					{
+						"user": key,
+						"items": size,
+						"budget": budget,
+						"scanned": fw[0]["scanned"],
+						"returned": fw[0]["returned"],
+						"warm_p50": pct([p["total_ms"] for p in fw], 50) + ping["p50"],
+						"warm_p95": fwp95,
+						"cold_p95": pct([p["total_ms"] for p in fc], 95) + ping["p95"],
+						"rest_p95": rest_p95,
+						"ratio": fwp95 / rest_p95,
+					}
+				)
 			res["comparison"].append(
 				{
 					"user": key,
@@ -444,6 +535,8 @@ def main():
 					"get_list_p95": pct([p["total_ms"] for p in gl], 95),
 					"shortcut_p95": pct([p["total_ms"] for p in sc], 95),
 					"preload_p95": pct([p["total_ms"] for p in pl], 95),
+					"rest_name_mismatch": name_mismatch,
+					"rest_allow_disagreements": allow_dis,
 				}
 			)
 		res["done_users"].append(key)

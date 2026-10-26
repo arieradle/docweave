@@ -52,7 +52,7 @@ context:
 - `.gitignore` -- add any local bench or site paths, in case they end up inside the workspace.
 - `README.md` -- add a Development environment section.
 - Frappe v16.53.0 requires Python `>=3.14,<3.15` and Node `>=24`. It pins both PyMySQL and `mysqlclient==2.2.7`; mysqlclient has no Python 3.14 wheel, so install `libmariadb-dev`, `pkg-config` and `build-essential`, plus `mariadb-client` for bench's console and backup commands.
-- Out of scope here: fast start for brand-new codespaces (prebuilt image plus Codespaces prebuilds) is Story 0.3.
+- Out of scope here: fast start for brand-new codespaces (prebuilt image plus Codespaces prebuilds) is Story 0.4.
 
 ## Tasks & Acceptance
 

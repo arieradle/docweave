@@ -7,4 +7,5 @@ set -Eeuo pipefail
 cd /home/vscode/frappe-bench/sites
 exec ../env/bin/gunicorn -b 127.0.0.1:8001 \
   --worker-class gthread --workers 2 --threads 4 \
-  --timeout 120 --preload frappe.app:application
+  --timeout 120 --pid /home/vscode/frappe-bench/spike-gunicorn.pid \
+  --preload frappe.app:application

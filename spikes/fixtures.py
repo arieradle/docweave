@@ -164,7 +164,7 @@ def order_rows(size, rng, group, territory):
 			code = item_code(rng.randint(1, N_ITEMS))
 			items.append(
 				(
-					frappe.generate_hash(length=10), name, "Sales Order", "items", idx,
+					f"{name}-{idx:03d}", name, "Sales Order", "items", idx,
 					owner, ts, ts, "Administrator", 1,
 					code, code.replace("SPIKE-ITEM-", "Spike Item "), qty, "Nos", "Nos", 1, qty,
 					rate, amount, rate, amount, rate, amount, rate, amount, whs[idx - 1], ddate,
@@ -214,7 +214,7 @@ def ensure_orders(group, territory):
 			items.extend(order_items)
 			if share:
 				shares.append(
-					(frappe.generate_hash(length=10), "Administrator", ts, ts, "Administrator",
+					(f"{order[0]}-share", "Administrator", ts, ts, "Administrator",
 					 USERS["shared"], "Sales Order", order[0], 1, 0, 0, 0, 0, 0)
 				)  # fmt: skip
 		frappe.db.bulk_insert("Sales Order", ORDER_FIELDS, orders, chunk_size=1000)
