@@ -65,7 +65,10 @@ curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/${RTK_VERSION
   | RTK_VERSION="${RTK_VERSION}" sh
 
 step "Register rtk hook for Claude Code"
-"${HOME}/.local/bin/rtk" init -g --auto-patch --no-trust-filters
+# stdin from /dev/null: post-create has no one to answer a prompt, and rtk
+# blocks on one when its config already exists in ~/.claude.
+"${HOME}/.local/bin/rtk" init -g --auto-patch --no-trust-filters </dev/null \
+  || echo "WARNING: rtk init failed; rtk hooks not registered. Run 'rtk init -g' by hand." >&2
 
 # --- System packages ---------------------------------------------------------
 step "Install system packages"

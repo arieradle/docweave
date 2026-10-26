@@ -2,7 +2,7 @@
 title: 'Development environment with Frappe v16 and ERPNext'
 type: 'chore'
 created: '2026-10-24'
-status: 'in-review'
+status: 'done'
 baseline_commit: 'a3be8a4c1198ff8d755ef6cf639fcab2e33f60c7'
 route: 'dispatch'
 review_loop_iteration: 1
@@ -80,6 +80,8 @@ context:
 ## Spec Change Log
 
 - **Loop 1 (review of first implementation).** Triggering findings: destructive recovery (`new-site --force` on a transient failure; wiping the bench volume when the sentinel is missing), version bumps silently ignored, the bench venv bound to the floating base image's Python, no Redis readiness, MariaDB wait that passes on a wrong password, developer mode off, repo-wide `*.sql` ignore. Amended: Code Map, Tasks, Design Notes. Known-bad state avoided: a rebuild that destroys the dev site or bench, or keeps stale versions while claiming the pinned ones. KEEP: the Compose layout modelled on frappe_docker (MariaDB 11.8 with utf8mb4 flags and healthcheck, separate `redis-cache`/`redis-queue` on `redis:7-alpine`, named volumes); pinned versions as constants at the top of the script; named steps with an ERR trap that prints the failing step; uv 0.13.5 via versioned installer URL and `uv tool install frappe-bench==5.31.0`; `bench init --skip-redis-config-generation --no-backups </dev/null`; `set-config -g` for `db_host`, `redis_cache`, `redis_queue`; `new-site --mariadb-user-host-login-scope=%`; `bench use dev.localhost`; README sections for services, logins, rebuild and reset.
+
+- **Compose verification (2026-10-26).** First real Compose run hung at `rtk init -g`, which waited on the terminal for a prompt nobody could answer. Fix: stdin from `/dev/null`, and a failed `rtk init` now warns instead of stopping setup. After the fix: a full run completed (frappe 16.53.0, erpnext 16.52.1, `developer_mode` 1, setup wizard complete); a second run exited 0 in 8s with every step skipped; `bench doctor` clean; desk loads and a new Sales Order form opens. Not yet run: a full container rebuild from VS Code.
 
 ## Review Triage Log
 
