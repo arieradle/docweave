@@ -351,6 +351,7 @@ def fmt(v, digits=2):
 
 
 def tables(res):
+	ft = res.get("fill_trials", FILL_TRIALS)
 	lines = []
 	lines.append("### AD-4 full check (get_doc + has_permission) per candidate\n")
 	lines.append(
@@ -377,7 +378,7 @@ def tables(res):
 		lines.append(
 			f"| {c['user']} | {c['items']} | {fmt(c['rest_p95'], 0)} | {fmt(c['docweave_p95'], 0)} | "
 			f"{fmt(c['ratio'])} | {fmt(c['get_list_p95'], 1)} | {fmt(c['shortcut_p95'], 0)} | "
-			f"{fmt(c['preload_p95'], 0)} | {c['rest_name_mismatch']} | {c['rest_allow_disagreements']} |"
+			f"{fmt(c['preload_p95'], 0)} | {c.get('rest_name_mismatch', '–')} | {c.get('rest_allow_disagreements', '–')} |"
 		)
 	lines.append("\n### REST per-document GET (ms)\n")
 	lines.append("| User | Items | Cache | p50 | p95 | Page p95 |")
@@ -402,24 +403,57 @@ def tables(res):
 			f"{p['disagreements']} | {p['preload_allowed']} | {p['preload_disagreements']} | "
 			f"{fmt(p['full_p50'])} / {fmt(p['full_p95'])} | {fmt(p['shortcut_p50'])} / {fmt(p['shortcut_p95'])} | "
 			f"{fmt(p['preload_p50'])} / {fmt(p['preload_p95'])} | {fmt(p['full_scan_ms'], 0)} | "
-			f"{fmt(p['preload_scan_ms'], 0)} | {fmt(p['full_queries_per_candidate'], 1)} / "
+			f"{fmt(p['preload_scan_ms'], 0)} | {fmt(p.get('full_queries_per_candidate'), 1)} / "
 			f"{fmt(p['preload_queries_per_candidate'], 2)} |"
 		)
 	lines.append(
-		f"\n### Filling one page of {PAGE} documents (cold {res['fill_trials'][0]} / warm {res['fill_trials'][1]} trials)\n"
+		f"\n### Filling one page of {PAGE} documents (cold {ft[0]} / warm {ft[1]} trials)\n"
 	)
 	lines.append(
 		"| User | Items | Budget | Scanned | Returned | Short page | Warm p50 ms | Warm p95 ms | Cold p95 ms "
 		"| REST page p95 ms | Warm p95 / REST |"
 	)
 	lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
-	for f in res["fill"]:
+	for f in res.get("fill", []):
 		lines.append(
 			f"| {f['user']} | {f['items']} | {f['budget']} | {f['scanned']} | {f['returned']} | "
 			f"{'yes' if f['returned'] < PAGE else 'no'} | {fmt(f['warm_p50'], 0)} | {fmt(f['warm_p95'], 0)} | "
 			f"{fmt(f['cold_p95'], 0)} | {fmt(f['rest_p95'], 0)} | {fmt(f['ratio'])} |"
 		)
+	if res.get("fill"):
+		lines.extend(equal_readable_tables(res, ft))
 	return "\n".join(lines) + "\n"
+
+
+def equal_readable_tables(res, ft):
+	"""Spike 0.2's target reading: time per readable document. REST's 100-row
+	page holds denied documents too, so its cost per readable document is its
+	page p95 divided by the documents on that page the full check allows."""
+	readable = {(f["user"], f["items"]): f["warm"]["allowed"] for f in res["full"] if f["limit"] == PAGE}
+	lines = [f"\n### Equal readable documents: warm p95 per document (fill: {ft[1]} warm trials; REST: {res['trials'][str(PAGE)][1]})\n"]
+	lines.append(
+		"| User | Items | Budget | REST readable per page | REST ms per readable doc | Returned "
+		"| DocWeave ms per returned doc | Equal-readable ratio | Literal ratio (fill ÷ REST page) |"
+	)
+	lines.append("|---|---|---|---|---|---|---|---|---|")
+	worst = {}
+	for f in res["fill"]:
+		rd = readable[(f["user"], f["items"])]
+		rest_per, dw_per = f["rest_p95"] / rd, f["warm_p95"] / f["returned"]
+		ratio = dw_per / rest_per
+		if f["budget"] not in worst or ratio > worst[f["budget"]][0]:
+			worst[f["budget"]] = (ratio, f["user"], f["items"])
+		lines.append(
+			f"| {f['user']} | {f['items']} | {f['budget']} | {rd} | {fmt(rest_per, 1)} | {f['returned']} | "
+			f"{fmt(dw_per, 1)} | {fmt(ratio)} | {fmt(f['ratio'])} |"
+		)
+	lines.append("\n### Equal readable documents: worst case per budget\n")
+	lines.append("| Budget | Worst equal-readable ratio | Where |")
+	lines.append("|---|---|---|")
+	for b in sorted(worst):
+		v, u, i = worst[b]
+		lines.append(f"| {b} | {fmt(v)} | {u}, {i} items |")
+	return lines
 
 
 def main():
@@ -429,7 +463,14 @@ def main():
 	parser.add_argument("--quick", action="store_true", help="few trials, for a smoke run")
 	parser.add_argument("--resume", action="store_true", help="skip users already in the checkpoint")
 	parser.add_argument("--out-suffix", default="", help="appended to the result file names, e.g. -0-2")
+	parser.add_argument("--tables-from", help="regenerate the Markdown tables from a results JSON; no measuring")
 	args = parser.parse_args()
+
+	if args.tables_from:
+		src = Path(args.tables_from)
+		src.with_suffix(".md").write_text(tables(json.loads(src.read_text())))
+		print(f"wrote {src.with_suffix('.md')}")
+		return
 
 	# (cold, warm) trials per page size
 	trials = {PAGE: (5, 20), SCAN_BUDGET: (2, 3)}
@@ -448,7 +489,7 @@ def main():
 		res["http_round_trip_ms"] = ping
 	res.setdefault("done_users", [])
 	fill_trials = (1, 2) if args.quick else FILL_TRIALS
-	res["fill_trials"] = fill_trials
+	res.setdefault("fill_trials", fill_trials)  # a resumed run keeps the counts it started with
 
 	for key, user in USERS.items():
 		if key in res["done_users"]:
@@ -546,7 +587,9 @@ def main():
 	frappe.destroy()
 
 	(RESULTS_DIR / f"permission-check{args.out_suffix}.json").write_text(json.dumps(res, indent=1, default=str))
-	(RESULTS_DIR / f"permission-check{args.out_suffix}.md").write_text(tables(res))
+	# Spike 0.1's evidence is permission-check-tables.md; suffixed runs write permission-check<suffix>.md
+	tables_name = f"permission-check{args.out_suffix}.md" if args.out_suffix else "permission-check-tables.md"
+	(RESULTS_DIR / tables_name).write_text(tables(res))
 	print(tables(res))
 	print(json.dumps({"env": res["env"], "http_round_trip_ms": ping}, indent=1))
 	checkpoint.unlink()

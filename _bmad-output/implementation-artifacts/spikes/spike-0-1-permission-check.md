@@ -1,6 +1,6 @@
 # Spike 0.1: Cost of the per-candidate permission check (AD-4)
 
-**Story:** 0.1 · **Date:** 2026-10-26 · **Decision:** **Amend AD-4: lower the default scan budget to 200 candidates.** Confirmed by measurement in [Spike 0.2](spike-0-2-ad-4-remeasure.md).
+**Story:** 0.1 · **Date:** 2026-10-26 · **Decision:** **Amend AD-4: lower the default scan budget to 200 candidates.** Confirmed by measurement in [Spike 0.2](spike-0-2-ad-4-remeasure.md), reading the target as equal readable documents. Read literally (one REST 100-row page), 200 fails for the warehouse user with 100-item orders and 150 would be the budget.
 
 ## Summary
 
