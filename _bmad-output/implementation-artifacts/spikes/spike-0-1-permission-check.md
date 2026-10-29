@@ -1,6 +1,6 @@
 # Spike 0.1: Cost of the per-candidate permission check (AD-4)
 
-**Story:** 0.1 · **Date:** 2026-10-26 · **Decision:** **Amend AD-4: lower the default scan budget.** The proposed value, 200 candidates, is provisional: Story 0.2 measures it directly.
+**Story:** 0.1 · **Date:** 2026-10-26 · **Decision:** **Amend AD-4: lower the default scan budget to 200 candidates.** Confirmed by measurement in [Spike 0.2](spike-0-2-ad-4-remeasure.md).
 
 ## Summary
 
@@ -211,7 +211,7 @@ All times in milliseconds. "Page p95" includes the candidate query.
 
 ## Decision for AD-4
 
-**Amend: lower the default scan budget. Proposed value: 200 candidates (2 × the maximum page of 100), provisional until Story 0.2 measures it.**
+**Amend: lower the default scan budget to 200 candidates (2 × the maximum page of 100).** Story 0.2 measured it and confirmed it; see [Spike 0.2](spike-0-2-ad-4-remeasure.md). The extrapolation below is kept as originally written.
 
 - The per-candidate check itself meets the target, so AD-4's two-stage design and full-parity check stay as they are.
 - What fails is the default budget, which the architecture already marks `[ASSUMPTION]`, to be tuned in the first slice.

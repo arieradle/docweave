@@ -46,7 +46,7 @@ PAGE = 100
 HTTP_TIMEOUT = 60  # seconds; a stuck server fails the run instead of hanging it
 REST_SERVER = "gunicorn 23.0.0, gthread, 2 workers x 4 threads, --preload"
 SCAN_BUDGET = 2000
-FILL_BUDGETS = (200, 2000)  # candidate budgets for filling one page of PAGE documents
+FILL_BUDGETS = (100, 150, 200, 300, 500, 2000)  # candidate budgets for filling one page of PAGE documents
 FILL_TRIALS = (3, 10)  # (cold, warm)
 GUNICORN_PID = Path("/home/vscode/frappe-bench/spike-gunicorn.pid")  # written by serve_rest.sh
 
@@ -406,7 +406,7 @@ def tables(res):
 			f"{fmt(p['preload_queries_per_candidate'], 2)} |"
 		)
 	lines.append(
-		f"\n### Filling one page of {PAGE} documents (cold {FILL_TRIALS[0]} / warm {FILL_TRIALS[1]} trials)\n"
+		f"\n### Filling one page of {PAGE} documents (cold {res['fill_trials'][0]} / warm {res['fill_trials'][1]} trials)\n"
 	)
 	lines.append(
 		"| User | Items | Budget | Scanned | Returned | Short page | Warm p50 ms | Warm p95 ms | Cold p95 ms "
@@ -428,6 +428,7 @@ def main():
 	parser.add_argument("--http", default="http://127.0.0.1:8001", help="gunicorn serving the bench")
 	parser.add_argument("--quick", action="store_true", help="few trials, for a smoke run")
 	parser.add_argument("--resume", action="store_true", help="skip users already in the checkpoint")
+	parser.add_argument("--out-suffix", default="", help="appended to the result file names, e.g. -0-2")
 	args = parser.parse_args()
 
 	# (cold, warm) trials per page size
@@ -436,7 +437,7 @@ def main():
 		trials = {PAGE: (1, 2), SCAN_BUDGET: (1, 1)}
 
 	RESULTS_DIR.mkdir(exist_ok=True)
-	checkpoint = RESULTS_DIR / "permission-check.partial.json"
+	checkpoint = RESULTS_DIR / f"permission-check{args.out_suffix}.partial.json"
 	if args.resume and checkpoint.exists():
 		res = json.loads(checkpoint.read_text())
 		ping = res["http_round_trip_ms"]
@@ -447,6 +448,7 @@ def main():
 		res["http_round_trip_ms"] = ping
 	res.setdefault("done_users", [])
 	fill_trials = (1, 2) if args.quick else FILL_TRIALS
+	res["fill_trials"] = fill_trials
 
 	for key, user in USERS.items():
 		if key in res["done_users"]:
@@ -543,8 +545,8 @@ def main():
 		checkpoint.write_text(json.dumps(res, indent=1, default=str))
 	frappe.destroy()
 
-	(RESULTS_DIR / "permission-check.json").write_text(json.dumps(res, indent=1, default=str))
-	(RESULTS_DIR / "permission-check-tables.md").write_text(tables(res))
+	(RESULTS_DIR / f"permission-check{args.out_suffix}.json").write_text(json.dumps(res, indent=1, default=str))
+	(RESULTS_DIR / f"permission-check{args.out_suffix}.md").write_text(tables(res))
 	print(tables(res))
 	print(json.dumps({"env": res["env"], "http_round_trip_ms": ping}, indent=1))
 	checkpoint.unlink()
