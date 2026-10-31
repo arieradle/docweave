@@ -2,7 +2,7 @@
 title: 'Fast start for new codespaces'
 type: 'chore'
 created: '2026-10-31'
-status: 'in-review'
+status: 'done'
 baseline_commit: '73462cd3ef922ce93beacc35a39916e80a327961'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -96,7 +96,16 @@ context:
 - **Workflow run `41247348743`** (`eecaa98`): success in about 4.5 minutes. The image `ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1` is linux/amd64, 0.97 GB compressed, with a 572 MB layer from the image-stage setup.
 - **Visibility.** Contrary to the spec's assumption, the package was readable anonymously right after the first publish (pull token plus manifest returned 200). It took the public repository's visibility, so no manual step was needed. The README says so.
 - **Rollout step 2:** `docker-compose.yml` now uses the image.
-- **Not verified here:** a new codespace from the image, and prebuilds. Both need the human: enabling prebuilds in repository settings, and creating a codespace.
+- **Prebuild verified (2026-10-31):** the human enabled prebuilds on `main`. Prebuild run `41248963447` for `02d8024` succeeded. In its log:
+  - `onCreateCommand` reports every install as "already installed" and "Existing bench found."
+  - no `bench init` and no `get-app`
+  - Frappe and ERPNext at the pinned tags, the venv healthy
+  - then `Create site dev.localhost`, and Create Template and Upload Template both succeeded
+  - the Node feature installed exactly 24.22.1
+
+  The two superseded prebuilds (`97d724c`, `4955e8e`) were cancelled by the human.
+- **Review-fix workflow verified:** dev-image run `41248408902` (`4955e8e`) passed the new smoke test, then pushed. PR #1's run `41248784043` built and smoke-tested without publishing.
+- **Still for the human:** creating a codespace from the prebuild and confirming that its log shows no `Create site` or `Recover site` step.
 
 ## Spec Change Log
 
