@@ -2,7 +2,7 @@
 title: 'Spike: verify masking at runtime and time its cost (AD-5)'
 type: 'chore'
 created: '2026-10-24'
-status: 'in-progress'
+status: 'in-review'
 baseline_commit: 'ef3c2c5f50d3aae8f37b82020a48e46888c880cd'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -51,11 +51,11 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `spikes/fixtures.py` -- add the masking configuration, the unmask role and a permlevel-1 field -- spike setup
-- [ ] `spikes/masking_check.py` -- run each matrix scenario and record the raw values returned per fieldtype, for parent and child rows -- runtime evidence for AD-5
-- [ ] `spikes/masking_check.py` -- grant and revoke the unmask role without clearing caches; compare `get_masked_fields` with a fresh `get_permlevel_access("mask", ...)` computation and with query results -- confirms whether AD-5's fresh computation is needed
-- [ ] `spikes/masking_check.py` -- over 2,000 Customers, time queries with and without masked fields, and time the fresh masked-set computation -- masking overhead
-- [ ] `_bmad-output/implementation-artifacts/spikes/spike-0-3-masking.md` -- report: environment, matrix results, timings, decision, architecture text to change -- the deliverable
+- [x] `spikes/fixtures.py` -- add the masking configuration, the unmask role and a permlevel-1 field -- spike setup
+- [x] `spikes/masking_check.py` -- run each matrix scenario and record the raw values returned per fieldtype, for parent and child rows -- runtime evidence for AD-5
+- [x] `spikes/masking_check.py` -- grant and revoke the unmask role without clearing caches; compare `get_masked_fields` with a fresh `get_permlevel_access("mask", ...)` computation and with query results -- confirms whether AD-5's fresh computation is needed
+- [x] `spikes/masking_check.py` -- over 2,000 Customers, time queries with and without masked fields, and time the fresh masked-set computation -- masking overhead
+- [x] `_bmad-output/implementation-artifacts/spikes/spike-0-3-masking.md` -- report: environment, matrix results, timings, decision, architecture text to change -- the deliverable
 
 **Acceptance Criteria:**
 - Given each matrix scenario, when the harness runs, then the report records the observed behaviour and exact values or exceptions.
@@ -71,7 +71,7 @@ context:
 ## Verification
 
 **Commands:**
-- `../env/bin/python ../../spikes/masking_check.py --site spike.localhost` (from `frappe-bench/sites`) -- expected: completes and writes the report tables
+- `../env/bin/python /workspaces/docweave/spikes/masking_check.py --site spike.localhost` (from `frappe-bench/sites`) -- expected: completes and writes the report tables
 
 **Manual checks (if no CLI):**
 - The report covers every matrix row, includes timings, and ends with one decision for AD-5.
