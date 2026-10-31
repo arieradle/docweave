@@ -8,7 +8,11 @@ Builds a realistic restriction mix on the spike site:
 - five users, one per restriction type (see USERS)
 - masking (Spike 0.3): masked custom fields on Customer, masked standard
   fields via Property Setters, a permlevel-1 field, an unmask role, a
-  masked-view user and 2,000 extra Customers (see ensure_masking)
+  masked-view user, an unmasked-view user and 2,000 extra Customers (see
+  ensure_masking). This changes the shared spike site: Customer and Sales
+  Order permissions become Custom DocPerm, and tax_id, rate and item_name
+  are masked for every role without the unmask role. Spikes 0.1 and 0.2 ran
+  before it.
 
 Orders and their rows are bulk-inserted straight into the tables: validation
 is not under test and `insert()` is far too slow for 250,000 item rows. The
@@ -52,6 +56,7 @@ SINGLE_WAREHOUSE_FRACTION = 0.50
 
 # --- Spike 0.3: masking ---------------------------------------------------
 MASK_USER = "spike.masked@example.com"  # Stock User: level 0 on Customer and Sales Order, no unmask
+UNMASKED_USER = "spike.unmasked@example.com"  # Stock User + the unmask role
 UNMASK_ROLE = "Spike Unmask"  # read + mask (= may see unmasked) at level 0 on Customer and Sales Order
 N_MASK_CUSTOMERS = 2000
 # Custom fields on Customer: one per fieldtype under test, all masked, plus a
@@ -262,9 +267,10 @@ def ensure_masking(group, territory):
 	for doctype in ("Customer", "Sales Order"):
 		if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": UNMASK_ROLE}):
 			add_permission(doctype, UNMASK_ROLE, 0, "read")
-			update_permission_property(doctype, UNMASK_ROLE, 0, "mask", 1)
+		update_permission_property(doctype, UNMASK_ROLE, 0, "mask", 1)  # also repairs a partial earlier run
 
 	ensure_user(MASK_USER, "Spike Masked", ["Stock User"])
+	ensure_user(UNMASKED_USER, "Spike Unmasked", ["Stock User", UNMASK_ROLE])
 
 	if frappe.db.count("Customer", {"name": ["like", "Spike Mask Customer %"]}):
 		print("mask customers: already present, skipped")

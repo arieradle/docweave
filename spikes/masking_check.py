@@ -10,7 +10,10 @@ frappe-bench/sites:
 """
 
 import argparse
+import datetime
 import json
+import os
+import platform
 import statistics
 import subprocess
 import sys
@@ -20,7 +23,7 @@ from pathlib import Path
 import frappe
 
 sys.path.insert(0, str(Path(__file__).parent))
-from fixtures import MASK_USER, UNMASK_ROLE, mask_customer_name, order_name  # noqa: E402
+from fixtures import MASK_USER, UNMASK_ROLE, UNMASKED_USER, mask_customer_name, order_name  # noqa: E402
 
 RESULTS_DIR = Path(__file__).parent / "results"
 PARENT_FIELDS = ["name", "tax_id", "spike_credit", "spike_since", "spike_score", "spike_phone", "spike_email", "spike_note"]
@@ -40,7 +43,14 @@ def new_request(site, user):
 
 
 def show(v):
-	return {"value": v if isinstance(v, (int, float, str, type(None))) else str(v), "type": type(v).__name__}
+	"""A value and its Python type, as JSON. Dates keep their type; lists recurse."""
+	if isinstance(v, (datetime.date, datetime.datetime, datetime.time, datetime.timedelta)):
+		return {"value": str(v), "type": type(v).__name__}
+	if isinstance(v, list):
+		return {"value": typed_rows(v), "type": "list"}
+	if isinstance(v, (int, float, str, type(None))):
+		return {"value": v, "type": type(v).__name__}
+	return {"value": str(v), "type": type(v).__name__}
 
 
 def attempt(fn):
@@ -93,10 +103,43 @@ def scenario_parent(site):
 		"get_doc_as_dict": attempt(
 			lambda: {k: show(v) for k, v in frappe.get_doc("Customer", ONE_CUSTOMER).as_dict().items() if k in PARENT_FIELDS}
 		),
+		"get_doc_fieldlevel": attempt(lambda: doc_with_fieldlevel_read()),
 	}
 	new_request(site, "Administrator")
 	out["raw"] = typed_rows(customer_query("Administrator", ignore_permissions=True, as_dict=True))
 	return out
+
+
+def doc_with_fieldlevel_read():
+	"""What Frappe's document endpoints (client.get, form load, /api/v2) do."""
+	doc = frappe.get_doc("Customer", ONE_CUSTOMER)
+	doc.apply_fieldlevel_read_permissions()
+	return {k: show(v) for k, v in doc.as_dict().items() if k in PARENT_FIELDS + ["spike_secret"]}
+
+
+def scenario_hidden_data(site):
+	"""Can a masked user learn real values through filters, sorting or aggregates?"""
+	new_request(site, MASK_USER)
+
+	def q(**kw):
+		return frappe.qb.get_query("Customer", ignore_permissions=False, user=MASK_USER, **kw).run(as_dict=True)
+
+	return {
+		"filter_equals_real_tax_id": attempt(lambda: typed_rows(q(fields=["name"], filters={"tax_id": "TAX-000001"}))),
+		"filter_credit_gt_49000": attempt(
+			lambda: len(q(fields=["name"], filters={"name": ["like", MASK_LIKE], "spike_credit": [">", 49000]}))
+		),
+		"order_by_credit_desc_top3": attempt(
+			lambda: typed_rows(q(fields=["name", "spike_credit"], filters={"name": ["like", MASK_LIKE]}, order_by="spike_credit desc", limit=3))
+		),
+		"sum_credit": attempt(lambda: typed_rows(q(fields=[{"SUM": "spike_credit", "as": "total"}], filters={"name": ["like", MASK_LIKE]}))),
+		"max_since": attempt(lambda: typed_rows(q(fields=[{"MAX": "spike_since", "as": "latest"}], filters={"name": ["like", MASK_LIKE]}))),
+		"get_list_filter_real_tax_id": attempt(
+			lambda: typed_rows(frappe.get_list("Customer", filters={"tax_id": "TAX-000001"}, fields=["name"]))
+		),
+		"filter_on_level1_field": attempt(lambda: typed_rows(q(fields=["name"], filters={"spike_secret": "secret 1"}))),
+		"real_count_credit_gt_49000": None,  # filled in as Administrator below
+	}
 
 
 def scenario_child(site):
@@ -123,6 +166,7 @@ def scenario_child(site):
 		"without_parent_doctype": attempt(lambda: child(None)),
 		"nested_child_fields": attempt(nested),
 		"cached_masked_child": cached_masked("Sales Order Item", "Sales Order"),
+		"fresh_masked_child": fresh_masked("Sales Order Item", MASK_USER, "Sales Order"),
 		"cached_masked_child_no_parent": cached_masked("Sales Order Item"),
 	}
 
@@ -143,9 +187,17 @@ def scenario_ignore_permissions(site):
 
 
 def scenario_session_user_mismatch(site):
-	"""get_query(user=MASK_USER) while the session user is Administrator."""
+	"""Masking follows the session user or get_query(user=)? Three pairings."""
+	out = {}
+	for session, arg in (("Administrator", MASK_USER), (UNMASKED_USER, MASK_USER), (MASK_USER, UNMASKED_USER)):
+		new_request(site, session)
+		out[f"session={session} user={arg}"] = attempt(
+			lambda: typed_rows(customer_query(arg, fields=["name", "tax_id", "spike_secret"], as_dict=True))
+		)
 	new_request(site, "Administrator")
-	return attempt(lambda: typed_rows(customer_query(MASK_USER, as_dict=True)))
+	out["fresh_masked for Administrator"] = fresh_masked("Customer", "Administrator")
+	out["get_masked_fields for Administrator"] = cached_masked("Customer")
+	return out
 
 
 def role_state(site, step):
@@ -159,6 +211,12 @@ def role_state(site, step):
 		"cached_masked": cached_masked("Customer"),
 		"fresh_masked": fresh_masked("Customer", MASK_USER),
 		"query_tax_id": customer_query(MASK_USER, fields=["tax_id"], pluck=True)[0],
+		"child_cached_masked": cached_masked("Sales Order Item", "Sales Order"),
+		"child_fresh_masked": fresh_masked("Sales Order Item", MASK_USER, "Sales Order"),
+		"child_query_rate": frappe.qb.get_query(
+			"Sales Order Item", fields=["rate"], filters={"parent": ONE_ORDER}, limit=1,
+			parent_doctype="Sales Order", ignore_permissions=False, user=MASK_USER,
+		).run(pluck=True)[0],
 	}
 
 
@@ -195,6 +253,9 @@ def scenario_role_change(site):
 	new_request(site, "Administrator")
 	frappe.clear_cache(user=MASK_USER)
 	steps.append(role_state(site, "revoked, after frappe.clear_cache(user=...)"))
+	new_request(site, "Administrator")
+	frappe.clear_cache(doctype="Sales Order")
+	steps.append(role_state(site, "revoked, after frappe.clear_cache(doctype='Sales Order')"))
 	new_request(site, "Administrator")
 	frappe.clear_cache(doctype="Customer")
 	steps.append(role_state(site, "revoked, after frappe.clear_cache(doctype='Customer')"))
@@ -242,7 +303,7 @@ def time_masking(site):
 
 	fields = PARENT_FIELDS[:-1]
 	out = {}
-	for limit in (100, 2000):
+	for limit in (100, 200, 2000):
 
 		def run():
 			return frappe.qb.get_query(
@@ -261,16 +322,18 @@ def time_masking(site):
 			Meta.get_masked_fields = lambda self, parenttype=None: []
 			try:
 				s = time.perf_counter()
-				run()
+				off_rows = run()
 				off.append((time.perf_counter() - s) * 1000)
 			finally:
 				Meta.get_masked_fields = orig
 		assert rows[0]["tax_id"] == "XXXXXXXX", "masking did not apply during timing"
+		assert off_rows[0]["tax_id"].startswith("TAX-"), "masking was not switched off in the comparison run"
+		diffs = [a - b for a, b in zip(on, off)]  # on and off alternate, so pair them per trial
 		out[f"query_{limit}"] = {
 			"masked": summary(on),
 			"unmasked": summary(off),
-			"overhead_p50": pct(on, 50) - pct(off, 50),
-			"overhead_p95": pct(on, 95) - pct(off, 95),
+			"overhead_paired": summary(diffs),
+			"overhead_pct_p50": 100 * (pct(on, 50) - pct(off, 50)) / pct(off, 50),
 			"rows": len(rows),
 		}
 
@@ -291,9 +354,22 @@ def time_masking(site):
 		s = time.perf_counter()
 		frappe.get_meta("Customer").get_masked_fields()
 		cold.append((time.perf_counter() - s) * 1000)
+	# First call of a request: no per-request local cache, so Redis is hit.
+	first_cached, first_fresh = [], []
+	for _ in range(TRIALS):
+		new_request(site, MASK_USER)
+		s = time.perf_counter()
+		frappe.get_meta("Customer").get_masked_fields()
+		first_cached.append((time.perf_counter() - s) * 1000)
+		new_request(site, MASK_USER)
+		s = time.perf_counter()
+		fresh_masked("Customer", MASK_USER)
+		first_fresh.append((time.perf_counter() - s) * 1000)
 	out["get_masked_fields_cached"] = summary(warm)
 	out["get_masked_fields_cache_miss"] = summary(cold)
 	out["fresh_masked_set"] = summary(fresh)
+	out["get_masked_fields_first_call_of_request"] = summary(first_cached)
+	out["fresh_masked_set_first_call_of_request"] = summary(first_fresh)
 	return out
 
 
@@ -309,9 +385,18 @@ def environment(site):
 		"frappe": tag("frappe"),
 		"erpnext": tag("erpnext"),
 		"mariadb": frappe.db.sql("select version()")[0][0],
+		"redis": frappe.cache.info("server").get("redis_version"),
+		"python": platform.python_version(),
+		"cpu": next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "unknown"),
+		"cores": os.cpu_count(),
+		"ram_gb": round(next(int(l.split()[1]) for l in open("/proc/meminfo") if l.startswith("MemTotal")) / 1024 / 1024, 1),
 		"date": time.strftime("%Y-%m-%d %H:%M %Z"),
 		"site": site,
 	}
+
+
+def block(v):
+	return "```json\n" + json.dumps(v, indent=1) + "\n```\n"
 
 
 def cell(v):
@@ -336,35 +421,46 @@ def md(res):
 		)
 	L.append(f"\n`pluck` on `spike_credit`: {json.dumps(p['pluck_credit'])}\n")
 	c = res["child"]
+	L.append("`get_doc` then `apply_fieldlevel_read_permissions()` (what Frappe's document endpoints do):\n")
+	L.append(block(p["get_doc_fieldlevel"]))
+	L.append("## Filters, sorting and aggregates on masked fields\n")
+	L.append(block(res["hidden_data"]))
 	L.append("## Child rows (Sales Order Item, masked `item_name` and `rate`)\n")
-	for k in ("with_parent_doctype", "without_parent_doctype", "nested_child_fields"):
-		L.append(f"- **{k}**: `{json.dumps(c[k])[:600]}`")
-	L.append(f"- cached masked set with parent: `{c['cached_masked_child']}`, without parent: `{c['cached_masked_child_no_parent']}`\n")
+	L.append(block(c))
 	L.append("## `ignore_permissions=True`\n")
-	L.append(f"`{json.dumps(res['ignore_permissions'])[:900]}`\n")
-	L.append("## Session user differs from `user=`\n")
-	L.append(f"`{json.dumps(res['session_mismatch'])[:600]}`\n")
+	L.append(block(res["ignore_permissions"]))
+	L.append("## Session user and `get_query(user=)`\n")
+	L.append(block(res["session_mismatch"]))
 	L.append("## Unmask role granted and revoked without clearing caches\n")
-	L.append("| Step | Role held | Redis key present | Key TTL (s) | `get_masked_fields` | Fresh computation | Query `tax_id` |")
-	L.append("|---|---|---|---|---|---|---|")
+	L.append(
+		"| Step | Role held | Redis key present | Key TTL (s) | `get_masked_fields` | Fresh computation | Query `tax_id` "
+		"| Child cached / fresh | Child query `rate` |"
+	)
+	L.append("|---|---|---|---|---|---|---|---|---|")
 	for s in res["role_change"]:
 		L.append(
 			f"| {s['step']} | {s['roles_have_unmask']} | {s['redis_key_present']} | {s['redis_ttl_s']} | {len(s['cached_masked'])} fields | "
-			f"{len(s['fresh_masked'])} fields | `{s['query_tax_id']}` |"
+			f"{len(s['fresh_masked'])} fields | `{s['query_tax_id']}` | {len(s['child_cached_masked'])} / "
+			f"{len(s['child_fresh_masked'])} | `{s['child_query_rate']}` |"
 		)
 	L.append("\n## Field above the user's permlevel\n")
-	for k, v in res["permlevel"].items():
-		L.append(f"- **{k}**: `{json.dumps(v)[:500]}`")
+	L.append(block(res["permlevel"]))
 	t = res["timing"]
-	L.append(f"\n## Timing ({TRIALS} trials per query; {TRIALS * 10} per lookup; ms)\n")
-	L.append("| Measure | p50 | p95 | Overhead p50 | Overhead p95 |")
-	L.append("|---|---|---|---|---|")
-	for limit in (100, 2000):
+	L.append(f"\n## Timing (ms; {TRIALS} trials per query, {TRIALS * 10} per in-request lookup, {TRIALS} per first call)\n")
+	L.append("| Measure | p50 | p95 | Paired overhead p50 | Paired overhead p95 | Overhead % (p50) |")
+	L.append("|---|---|---|---|---|---|")
+	for limit in (100, 200, 2000):
 		q = t[f"query_{limit}"]
-		L.append(f"| Query {q['rows']} rows, masking on | {q['masked']['p50']:.2f} | {q['masked']['p95']:.2f} | {q['overhead_p50']:.2f} | {q['overhead_p95']:.2f} |")
-		L.append(f"| Query {q['rows']} rows, masking patched off | {q['unmasked']['p50']:.2f} | {q['unmasked']['p95']:.2f} | | |")
-	for k in ("get_masked_fields_cached", "get_masked_fields_cache_miss", "fresh_masked_set"):
-		L.append(f"| {k} | {t[k]['p50']:.3f} | {t[k]['p95']:.3f} | | |")
+		L.append(
+			f"| Query {q['rows']} rows, masking on | {q['masked']['p50']:.2f} | {q['masked']['p95']:.2f} | "
+			f"{q['overhead_paired']['p50']:.2f} | {q['overhead_paired']['p95']:.2f} | {q['overhead_pct_p50']:.0f}% |"
+		)
+		L.append(f"| Query {q['rows']} rows, masking patched off | {q['unmasked']['p50']:.2f} | {q['unmasked']['p95']:.2f} | | | |")
+	for k in (
+		"get_masked_fields_cached", "get_masked_fields_cache_miss", "get_masked_fields_first_call_of_request",
+		"fresh_masked_set", "fresh_masked_set_first_call_of_request",
+	):  # fmt: skip
+		L.append(f"| {k} | {t[k]['p50']:.3f} | {t[k]['p95']:.3f} | | | |")
 	return "\n".join(L) + "\n"
 
 
@@ -376,6 +472,7 @@ def main():
 	for name, fn in (
 		("parent", scenario_parent),
 		("child", scenario_child),
+		("hidden_data", scenario_hidden_data),
 		("ignore_permissions", scenario_ignore_permissions),
 		("session_mismatch", scenario_session_user_mismatch),
 		("role_change", scenario_role_change),
@@ -384,6 +481,10 @@ def main():
 	):
 		print(name, flush=True)
 		res[name] = fn(args.site)
+	new_request(args.site, "Administrator")
+	res["hidden_data"]["real_count_credit_gt_49000"] = frappe.db.count(
+		"Customer", {"name": ["like", MASK_LIKE], "spike_credit": [">", 49000]}
+	)
 	frappe.destroy()
 	RESULTS_DIR.mkdir(exist_ok=True)
 	(RESULTS_DIR / "masking-0-3.json").write_text(json.dumps(res, indent=1, default=str))
