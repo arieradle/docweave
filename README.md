@@ -137,6 +137,45 @@ pushes back to back, or create codespaces from the commit before step 1 meanwhil
 Existing codespaces keep their volumes. They still need a reset after a bump (see
 "Version mismatch").
 
+### Branches and pull requests
+
+`main` is protected. Work happens on a branch, one per story or fix (for example
+`story/1-1-installable-app` or `chore/...`), and reaches `main` through a pull request.
+
+- Push the branch and open the pull request with `gh pr create` (or from the link
+  `git push` prints). The devcontainer installs the GitHub CLI (`gh` 2.102.0). In
+  Codespaces it is signed in automatically through the codespace's `GITHUB_TOKEN`;
+  in a local devcontainer, run `gh auth login` once.
+- The `dev-image / devcontainer` check runs on every pull request. If the PR touches
+  `.devcontainer/` or `.github/workflows/dev-image.yml`, it builds the image and
+  smoke-tests the bench, but never publishes. It also checks that the image
+  `docker-compose.yml` names, including its digest, exists in GHCR. Other PRs pass it
+  in seconds.
+- Merge when the check is green. Merging to `main` publishes the image if the
+  devcontainer changed (see "Fast start"), and prebuilds refresh on devcontainer changes.
+- An image change is two pull requests: the first changes the Dockerfile or
+  `post-create.sh` and publishes on merge; the second updates the tag and digest in
+  `docker-compose.yml`. The second can't merge before the image exists, because of
+  the compose-image check.
+
+`.github/CODEOWNERS` names the owner for `.devcontainer/` and `.github/`.
+
+**Ruleset for `main`** (repository owner, once): **Settings > Rules > Rulesets > New
+ruleset > New branch ruleset**:
+
+- Name `main`, enforcement **Active**, target **Include default branch**.
+- **Bypass list:** empty (or add yourself only for emergencies; a bypass also skips the check).
+- Turn on:
+  - **Restrict deletions**
+  - **Block force pushes**
+  - **Require a pull request before merging**, with **Required approvals: 0**.
+    GitHub doesn't count your own approval, so 1 would lock a solo owner out. Leave
+    **Require review from Code Owners** off until there is a second maintainer.
+  - **Require status checks to pass**, add **`devcontainer`** (it appears in the list
+    after the check has run once on a pull request), and turn on **Require branches
+    to be up to date before merging**.
+- **Create**.
+
 ### Version mismatch
 
 If the pinned Frappe or ERPNext tag changes, an existing bench is not upgraded
