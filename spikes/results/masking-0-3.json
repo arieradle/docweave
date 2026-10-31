@@ -1,0 +1,728 @@
+{
+ "env": {
+  "frappe": "v16.53.0",
+  "erpnext": "v16.52.1",
+  "mariadb": "11.8.9-MariaDB-ubu2404",
+  "date": "2026-10-31 21:45 UTC",
+  "site": "spike.localhost"
+ },
+ "parent": {
+  "as_dict": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     },
+     "tax_id": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "spike_credit": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "spike_since": {
+      "value": "XX-XX-XXXX",
+      "type": "str"
+     },
+     "spike_score": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "spike_phone": {
+      "value": "+15XXXXXX",
+      "type": "str"
+     },
+     "spike_email": {
+      "value": "XXXXXX@example.com",
+      "type": "str"
+     },
+     "spike_note": {
+      "value": "note 1",
+      "type": "str"
+     }
+    }
+   ]
+  },
+  "as_list": {
+   "ok": true,
+   "result": [
+    [
+     {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     },
+     {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     {
+      "value": "XX-XX-XXXX",
+      "type": "str"
+     },
+     {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     {
+      "value": "+15XXXXXX",
+      "type": "str"
+     },
+     {
+      "value": "XXXXXX@example.com",
+      "type": "str"
+     },
+     {
+      "value": "note 1",
+      "type": "str"
+     }
+    ]
+   ]
+  },
+  "pluck_credit": {
+   "ok": true,
+   "result": [
+    {
+     "value": "XXXXXXXX",
+     "type": "str"
+    }
+   ]
+  },
+  "get_list": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     },
+     "tax_id": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "spike_credit": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "spike_since": {
+      "value": "XX-XX-XXXX",
+      "type": "str"
+     },
+     "spike_score": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "spike_phone": {
+      "value": "+15XXXXXX",
+      "type": "str"
+     },
+     "spike_email": {
+      "value": "XXXXXX@example.com",
+      "type": "str"
+     },
+     "spike_note": {
+      "value": "note 1",
+      "type": "str"
+     }
+    }
+   ]
+  },
+  "get_doc_as_dict": {
+   "ok": true,
+   "result": {
+    "name": {
+     "value": "Spike Mask Customer 0001",
+     "type": "str"
+    },
+    "tax_id": {
+     "value": "TAX-000001",
+     "type": "str"
+    },
+    "spike_note": {
+     "value": "note 1",
+     "type": "str"
+    },
+    "spike_email": {
+     "value": "buyer0001@example.com",
+     "type": "str"
+    },
+    "spike_phone": {
+     "value": "+15550000001",
+     "type": "str"
+    },
+    "spike_score": {
+     "value": 232,
+     "type": "int"
+    },
+    "spike_since": {
+     "value": "2020-01-02",
+     "type": "date"
+    },
+    "spike_credit": {
+     "value": 26729.4,
+     "type": "float"
+    }
+   }
+  },
+  "raw": [
+   {
+    "name": {
+     "value": "Spike Mask Customer 0001",
+     "type": "str"
+    },
+    "tax_id": {
+     "value": "TAX-000001",
+     "type": "str"
+    },
+    "spike_credit": {
+     "value": 26729.4,
+     "type": "float"
+    },
+    "spike_since": {
+     "value": "2020-01-02",
+     "type": "date"
+    },
+    "spike_score": {
+     "value": 232,
+     "type": "int"
+    },
+    "spike_phone": {
+     "value": "+15550000001",
+     "type": "str"
+    },
+    "spike_email": {
+     "value": "buyer0001@example.com",
+     "type": "str"
+    },
+    "spike_note": {
+     "value": "note 1",
+     "type": "str"
+    }
+   }
+  ]
+ },
+ "child": {
+  "with_parent_doctype": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "SPK-SO-5-0001-001",
+      "type": "str"
+     },
+     "parent": {
+      "value": "SPK-SO-5-0001",
+      "type": "str"
+     },
+     "item_name": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "rate": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "qty": {
+      "value": 6.0,
+      "type": "float"
+     }
+    },
+    {
+     "name": {
+      "value": "SPK-SO-5-0001-002",
+      "type": "str"
+     },
+     "parent": {
+      "value": "SPK-SO-5-0001",
+      "type": "str"
+     },
+     "item_name": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "rate": {
+      "value": "XXXXXXXX",
+      "type": "str"
+     },
+     "qty": {
+      "value": 19.0,
+      "type": "float"
+     }
+    }
+   ]
+  },
+  "without_parent_doctype": {
+   "ok": false,
+   "exception": "PermissionError",
+   "message": "Insufficient Permission for <strong>Sales Order Item</strong>"
+  },
+  "nested_child_fields": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "SPK-SO-5-0001",
+      "type": "str"
+     },
+     "items": {
+      "value": "[{'item_name': 'XXXXXXXX', 'rate': 'XXXXXXXX', 'qty': 6.0}, {'item_name': 'XXXXXXXX', 'rate': 'XXXXXXXX', 'qty': 19.0}, {'item_name': 'XXXXXXXX', 'rate': 'XXXXXXXX', 'qty': 19.0}, {'item_name': 'XXXXXXXX', 'rate': 'XXXXXXXX', 'qty': 3.0}, {'item_name': 'XXXXXXXX', 'rate': 'XXXXXXXX', 'qty': 6.0}]",
+      "type": "list"
+     }
+    }
+   ]
+  },
+  "cached_masked_child": [
+   "item_name",
+   "rate"
+  ],
+  "cached_masked_child_no_parent": [
+   "item_name",
+   "rate"
+  ]
+ },
+ "ignore_permissions": {
+  "parent": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     },
+     "tax_id": {
+      "value": "TAX-000001",
+      "type": "str"
+     },
+     "spike_credit": {
+      "value": 26729.4,
+      "type": "float"
+     },
+     "spike_since": {
+      "value": "2020-01-02",
+      "type": "date"
+     },
+     "spike_score": {
+      "value": 232,
+      "type": "int"
+     },
+     "spike_phone": {
+      "value": "+15550000001",
+      "type": "str"
+     },
+     "spike_email": {
+      "value": "buyer0001@example.com",
+      "type": "str"
+     },
+     "spike_note": {
+      "value": "note 1",
+      "type": "str"
+     }
+    }
+   ]
+  },
+  "child": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "SPK-SO-5-0001-001",
+      "type": "str"
+     },
+     "parent": {
+      "value": "SPK-SO-5-0001",
+      "type": "str"
+     },
+     "item_name": {
+      "value": "Spike Item 050",
+      "type": "str"
+     },
+     "rate": {
+      "value": 58.41,
+      "type": "float"
+     },
+     "qty": {
+      "value": 6.0,
+      "type": "float"
+     }
+    },
+    {
+     "name": {
+      "value": "SPK-SO-5-0001-002",
+      "type": "str"
+     },
+     "parent": {
+      "value": "SPK-SO-5-0001",
+      "type": "str"
+     },
+     "item_name": {
+      "value": "Spike Item 049",
+      "type": "str"
+     },
+     "rate": {
+      "value": 436.95,
+      "type": "float"
+     },
+     "qty": {
+      "value": 19.0,
+      "type": "float"
+     }
+    }
+   ]
+  }
+ },
+ "session_mismatch": {
+  "ok": true,
+  "result": [
+   {
+    "name": {
+     "value": "Spike Mask Customer 0001",
+     "type": "str"
+    },
+    "tax_id": {
+     "value": "TAX-000001",
+     "type": "str"
+    },
+    "spike_credit": {
+     "value": 26729.4,
+     "type": "float"
+    },
+    "spike_since": {
+     "value": "2020-01-02",
+     "type": "date"
+    },
+    "spike_score": {
+     "value": 232,
+     "type": "int"
+    },
+    "spike_phone": {
+     "value": "+15550000001",
+     "type": "str"
+    },
+    "spike_email": {
+     "value": "buyer0001@example.com",
+     "type": "str"
+    },
+    "spike_note": {
+     "value": "note 1",
+     "type": "str"
+    }
+   }
+  ]
+ },
+ "role_change": [
+  {
+   "step": "start: no unmask role, caches cleared",
+   "roles_have_unmask": false,
+   "redis_key_present": false,
+   "redis_ttl_s": -2,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "XXXXXXXX"
+  },
+  {
+   "step": "unmask role granted, no cache clear",
+   "roles_have_unmask": true,
+   "redis_key_present": true,
+   "redis_ttl_s": -1,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [],
+   "query_tax_id": "XXXXXXXX"
+  },
+  {
+   "step": "unmask role revoked, no cache clear",
+   "roles_have_unmask": false,
+   "redis_key_present": true,
+   "redis_ttl_s": -1,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "XXXXXXXX"
+  },
+  {
+   "step": "after frappe.clear_cache(user=...)",
+   "roles_have_unmask": false,
+   "redis_key_present": true,
+   "redis_ttl_s": -1,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "XXXXXXXX"
+  },
+  {
+   "step": "after frappe.clear_cache()",
+   "roles_have_unmask": false,
+   "redis_key_present": false,
+   "redis_ttl_s": -2,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "XXXXXXXX"
+  },
+  {
+   "step": "granted, caches cleared, cache warmed",
+   "roles_have_unmask": true,
+   "redis_key_present": false,
+   "redis_ttl_s": -2,
+   "cached_masked": [],
+   "fresh_masked": [],
+   "query_tax_id": "TAX-000001"
+  },
+  {
+   "step": "then revoked, no cache clear",
+   "roles_have_unmask": false,
+   "redis_key_present": true,
+   "redis_ttl_s": -1,
+   "cached_masked": [],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "TAX-000001"
+  },
+  {
+   "step": "still revoked, next request",
+   "roles_have_unmask": false,
+   "redis_key_present": true,
+   "redis_ttl_s": -1,
+   "cached_masked": [],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "TAX-000001"
+  },
+  {
+   "step": "revoked, after frappe.clear_cache(user=...)",
+   "roles_have_unmask": false,
+   "redis_key_present": true,
+   "redis_ttl_s": -1,
+   "cached_masked": [],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "TAX-000001"
+  },
+  {
+   "step": "revoked, after frappe.clear_cache(doctype='Customer')",
+   "roles_have_unmask": false,
+   "redis_key_present": false,
+   "redis_ttl_s": -2,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "XXXXXXXX"
+  },
+  {
+   "step": "revoked, after frappe.clear_cache()",
+   "roles_have_unmask": false,
+   "redis_key_present": false,
+   "redis_ttl_s": -2,
+   "cached_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "fresh_masked": [
+    "spike_credit",
+    "spike_email",
+    "spike_phone",
+    "spike_score",
+    "spike_since",
+    "tax_id"
+   ],
+   "query_tax_id": "XXXXXXXX"
+  }
+ ],
+ "permlevel": {
+  "query_with_level1_field": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     },
+     "spike_note": {
+      "value": "note 1",
+      "type": "str"
+     }
+    }
+   ]
+  },
+  "only_level1_field": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     }
+    }
+   ]
+  },
+  "get_list_with_level1_field": {
+   "ok": true,
+   "result": [
+    {
+     "name": {
+      "value": "Spike Mask Customer 0001",
+      "type": "str"
+     },
+     "spike_note": {
+      "value": "note 1",
+      "type": "str"
+     }
+    }
+   ]
+  }
+ },
+ "timing": {
+  "query_100": {
+   "masked": {
+    "n": 30,
+    "p50": 1.2415379999310971,
+    "p95": 2.221077050023723,
+    "mean": 1.5081998666573782
+   },
+   "unmasked": {
+    "n": 30,
+    "p50": 0.9505054999863205,
+    "p95": 2.0352527999307313,
+    "mean": 1.2457507333086444
+   },
+   "overhead_p50": 0.29103249994477665,
+   "overhead_p95": 0.18582425009299186,
+   "rows": 100
+  },
+  "query_2000": {
+   "masked": {
+    "n": 30,
+    "p50": 16.60391350003465,
+    "p95": 27.910240900018838,
+    "mean": 18.652320500018504
+   },
+   "unmasked": {
+    "n": 30,
+    "p50": 11.730751000072814,
+    "p95": 18.127363799976592,
+    "mean": 12.366046666663047
+   },
+   "overhead_p50": 4.873162499961836,
+   "overhead_p95": 9.782877100042246,
+   "rows": 2000
+  },
+  "get_masked_fields_cached": {
+   "n": 300,
+   "p50": 0.005635499974232516,
+   "p95": 0.008956449903507762,
+   "mean": 0.008353463335121583
+  },
+  "get_masked_fields_cache_miss": {
+   "n": 30,
+   "p50": 0.6196775000262278,
+   "p95": 0.9554661499009853,
+   "mean": 0.6780323999919347
+  },
+  "fresh_masked_set": {
+   "n": 300,
+   "p50": 0.0496465000878743,
+   "p95": 0.07143755010474706,
+   "mean": 0.08486289332646872
+  }
+ }
+}

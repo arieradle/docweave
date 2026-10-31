@@ -6,6 +6,9 @@ Builds a realistic restriction mix on the spike site:
 - three Sales Order sets of 2,000 submitted orders each, with 5, 20 and 100
   item rows per order (po_no = "spike-5" / "spike-20" / "spike-100")
 - five users, one per restriction type (see USERS)
+- masking (Spike 0.3): masked custom fields on Customer, masked standard
+  fields via Property Setters, a permlevel-1 field, an unmask role, a
+  masked-view user and 2,000 extra Customers (see ensure_masking)
 
 Orders and their rows are bulk-inserted straight into the tables: validation
 is not under test and `insert()` is far too slow for 250,000 item rows. The
@@ -46,6 +49,28 @@ DESK_ROLE = "Spike Desk"
 SHARE_FRACTION = 0.10
 OWNER_FRACTION = 0.10
 SINGLE_WAREHOUSE_FRACTION = 0.50
+
+# --- Spike 0.3: masking ---------------------------------------------------
+MASK_USER = "spike.masked@example.com"  # Stock User: level 0 on Customer and Sales Order, no unmask
+UNMASK_ROLE = "Spike Unmask"  # read + mask (= may see unmasked) at level 0 on Customer and Sales Order
+N_MASK_CUSTOMERS = 2000
+# Custom fields on Customer: one per fieldtype under test, all masked, plus a
+# permlevel-1 field that the masked user cannot read.
+MASK_CUSTOM_FIELDS = [
+	dict(fieldname="spike_credit", label="Spike Credit", fieldtype="Currency", mask=1),
+	dict(fieldname="spike_since", label="Spike Since", fieldtype="Date", mask=1),
+	dict(fieldname="spike_score", label="Spike Score", fieldtype="Int", mask=1),
+	dict(fieldname="spike_phone", label="Spike Phone", fieldtype="Data", options="Phone", mask=1),
+	dict(fieldname="spike_email", label="Spike Email", fieldtype="Data", options="Email", mask=1),
+	dict(fieldname="spike_note", label="Spike Note", fieldtype="Data"),  # unmasked control
+	dict(fieldname="spike_secret", label="Spike Secret", fieldtype="Data", permlevel=1),
+]
+# Standard fields masked through Frappe's own Property Setter path.
+MASK_PROPERTY_SETTERS = [("Customer", "tax_id"), ("Sales Order Item", "rate"), ("Sales Order Item", "item_name")]
+
+
+def mask_customer_name(i):
+	return f"Spike Mask Customer {i:04d}"
 
 
 def customer_name(i):
@@ -224,6 +249,51 @@ def ensure_orders(group, territory):
 		print(f"set spike-{size}: {len(orders)} orders, {len(items)} item rows, {len(shares)} shares")
 
 
+def ensure_masking(group, territory):
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+
+	create_custom_fields({"Customer": [dict(f, insert_after="tax_id") for f in MASK_CUSTOM_FIELDS]})
+	for doctype, fieldname in MASK_PROPERTY_SETTERS:
+		make_property_setter(doctype, fieldname, "mask", 1, "Check", validate_fields_for_doctype=False)
+
+	if not frappe.db.exists("Role", UNMASK_ROLE):
+		frappe.get_doc(doctype="Role", role_name=UNMASK_ROLE, desk_access=1).insert()
+	for doctype in ("Customer", "Sales Order"):
+		if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": UNMASK_ROLE}):
+			add_permission(doctype, UNMASK_ROLE, 0, "read")
+			update_permission_property(doctype, UNMASK_ROLE, 0, "mask", 1)
+
+	ensure_user(MASK_USER, "Spike Masked", ["Stock User"])
+
+	if frappe.db.count("Customer", {"name": ["like", "Spike Mask Customer %"]}):
+		print("mask customers: already present, skipped")
+		return
+	ts = now()
+	rng = random.Random(SEED + 3)
+	rows = []
+	for i in range(1, N_MASK_CUSTOMERS + 1):
+		name = mask_customer_name(i)
+		rows.append(
+			(
+				name, "Administrator", ts, ts, "Administrator", 0, name, "Company", group, territory,
+				f"TAX-{i:06d}", round(rng.uniform(100, 50000), 2), add_days(getdate("2020-01-01"), i % 1500),
+				rng.randint(1, 1000), f"+1555{i:07d}", f"buyer{i:04d}@example.com", f"note {i}", f"secret {i}",
+			)
+		)  # fmt: skip
+	frappe.db.bulk_insert(
+		"Customer",
+		[
+			"name", "owner", "creation", "modified", "modified_by", "docstatus", "customer_name",
+			"customer_type", "customer_group", "territory", "tax_id", "spike_credit", "spike_since",
+			"spike_score", "spike_phone", "spike_email", "spike_note", "spike_secret",
+		],  # fmt: skip
+		rows,
+		chunk_size=1000,
+	)
+	print(f"mask customers: {len(rows)} inserted")
+
+
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--site", default="spike.localhost")
@@ -238,6 +308,8 @@ def main():
 		ensure_users()
 		frappe.db.commit()
 		ensure_orders(group, territory)
+		ensure_masking(group, territory)
+		frappe.db.commit()
 		frappe.clear_cache()
 	finally:
 		frappe.destroy()

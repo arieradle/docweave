@@ -2,7 +2,8 @@
 title: 'Spike: verify masking at runtime and time its cost (AD-5)'
 type: 'chore'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_commit: 'ef3c2c5f50d3aae8f37b82020a48e46888c880cd'
 route: 'dispatch'
 review_loop_iteration: 0
 context:
