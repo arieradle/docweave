@@ -2,6 +2,11 @@
 # Runs after the devcontainer is created. Safe to rerun:
 #   bash .devcontainer/post-create.sh
 #
+# DOCWEAVE_STAGE=image (used by .devcontainer/Dockerfile) stops after the bench
+# and ERPNext are installed: no rtk, no services, no site. The prebuilt image
+# carries that bench, and a new frappe-bench volume is seeded from it, so the
+# full run then only checks the bench and creates the site.
+#
 # Sets up rtk, the system packages Frappe needs, uv, frappe-bench, a Frappe
 # bench with ERPNext and the site dev.localhost. The bench lives in the
 # `frappe-bench` volume and the database in `mariadb-data`, so a rebuild
@@ -15,10 +20,14 @@ UV_VERSION="0.13.5"
 BENCH_VERSION="5.31.0"
 FRAPPE_TAG="v16.53.0"
 ERPNEXT_TAG="v16.52.1"
+# The bench venv binds to a uv-managed interpreter in ~/.local/share/uv, not to
+# the base image's or the Python feature's, so it survives image and feature
+# updates and exists inside the prebuilt image.
+PYTHON_VERSION="3.14.9"  # the newest CPython uv 0.13.5 can download
 
 # --- Development settings (dev-only credentials, documented in README) -------
 BENCH_DIR="/home/vscode/frappe-bench"
-SITE="dev.localhost"
+SITE="${DOCWEAVE_SITE:-dev.localhost}"
 DB_HOST="mariadb"
 DB_ROOT_PASSWORD="123"
 ADMIN_PASSWORD="admin"
@@ -32,6 +41,9 @@ COMPANY_CURRENCY="USD"
 COMPANY_TIMEZONE="America/New_York"
 WAIT_TIMEOUT_SECONDS=180
 SENTINEL="${BENCH_DIR}/.docweave-bench-ready"
+
+STAGE="${DOCWEAVE_STAGE:-full}"
+[[ "${STAGE}" == "full" || "${STAGE}" == "image" ]] || { echo "Unknown DOCWEAVE_STAGE: ${STAGE}" >&2; exit 1; }
 
 export PATH="${HOME}/.local/bin:${PATH}"
 
@@ -58,6 +70,7 @@ die() {
 }
 
 # --- rtk ---------------------------------------------------------------------
+if [[ "${STAGE}" == "full" ]]; then
 step "Install rtk ${RTK_VERSION}"
 # rtk compresses shell command output for Claude Code (https://github.com/rtk-ai/rtk).
 # The installer verifies the release checksum and installs to ~/.local/bin.
@@ -69,6 +82,7 @@ step "Register rtk hook for Claude Code"
 # blocks on one when its config already exists in ~/.claude.
 "${HOME}/.local/bin/rtk" init -g --auto-patch --no-trust-filters </dev/null \
   || echo "WARNING: rtk init failed; rtk hooks not registered. Run 'rtk init -g' by hand." >&2
+fi
 
 # --- System packages ---------------------------------------------------------
 step "Install system packages"
@@ -94,6 +108,11 @@ if [[ "$(uv --version 2>/dev/null | awk '{print $2}')" == "${UV_VERSION}" ]]; th
 else
   curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_NO_MODIFY_PATH=1 sh
 fi
+
+step "Install Python ${PYTHON_VERSION} (uv-managed)"
+uv python install --managed-python --no-bin "${PYTHON_VERSION}"
+BENCH_PYTHON="$(uv python find --managed-python "${PYTHON_VERSION}")"
+echo "Bench Python: ${BENCH_PYTHON}"
 
 step "Install frappe-bench ${BENCH_VERSION}"
 if [[ "$(bench --version 2>/dev/null | tail -n1)" == "${BENCH_VERSION}" ]]; then
@@ -129,8 +148,10 @@ wait_for_services() {
   done
 }
 
-step "Wait for MariaDB and Redis"
-wait_for_services
+if [[ "${STAGE}" == "full" ]]; then
+  step "Wait for MariaDB and Redis"
+  wait_for_services
+fi
 
 # --- Bench -------------------------------------------------------------------
 step "Prepare bench volume"
@@ -159,7 +180,7 @@ else
   (cd "$(dirname "${BENCH_DIR}")" && bench init "$(basename "${BENCH_DIR}")" \
     --ignore-exist \
     --frappe-branch "${FRAPPE_TAG}" \
-    --python "$(command -v python3.14)" \
+    --python "${BENCH_PYTHON}" \
     --skip-redis-config-generation \
     --no-backups \
     </dev/null)
@@ -196,7 +217,7 @@ if env/bin/python -c "import ${modules}" >/dev/null 2>&1; then
   echo "Bench venv is healthy."
 else
   echo "Bench venv cannot import ${modules}; recreating it."
-  bench setup env --python "$(command -v python3.14)"
+  bench setup env --python "${BENCH_PYTHON}"
   bench setup requirements
 fi
 
@@ -216,10 +237,34 @@ if ! grep -qx "erpnext" sites/apps.txt; then
   check_tag erpnext "${ERPNEXT_TAG}"
 fi
 
+if [[ "${STAGE}" == "image" ]]; then
+  step "Done (image stage)"
+  echo "Bench with Frappe ${FRAPPE_TAG} and ERPNext ${ERPNEXT_TAG} is ready; the site is created at container start."
+  exit 0
+fi
+
 # --- Site --------------------------------------------------------------------
 site_apps() {
   bench --site "${SITE}" list-apps 2>&1
 }
+
+# A site folder whose database is gone (for example a prebuild snapshot that
+# kept the bench volume but not MariaDB's) is moved aside, never deleted, and
+# the site is created again. Only a database that is certainly absent counts.
+if [[ -f "sites/${SITE}/site_config.json" ]]; then
+  db_name="$(env/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1]))["db_name"])' \
+    "sites/${SITE}/site_config.json")"
+  db_found="$(mariadb -h "${DB_HOST}" -uroot -p"${DB_ROOT_PASSWORD}" -N \
+    -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${db_name}'")"
+  if [[ "${db_found}" == "0" ]]; then
+    step "Recover site ${SITE} without a database"
+    # Outside sites/, so bench does not treat it as a site.
+    mkdir -p orphaned-sites
+    orphan="orphaned-sites/${SITE}.$(date +%Y%m%d%H%M%S)"
+    mv "sites/${SITE}" "${orphan}"
+    echo "Database ${db_name} for ${SITE} does not exist in MariaDB; moved the site folder to ${orphan} and creating the site again."
+  fi
+fi
 
 if [[ -f "sites/${SITE}/site_config.json" ]]; then
   step "Check existing site ${SITE}"
