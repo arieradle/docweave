@@ -2,7 +2,7 @@
 title: 'Spike: verify masking at runtime and time its cost (AD-5)'
 type: 'chore'
 created: '2026-10-24'
-status: 'in-review'
+status: 'done'
 baseline_commit: 'ef3c2c5f50d3aae8f37b82020a48e46888c880cd'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -64,9 +64,38 @@ context:
 
 ## Implementation Notes
 
+- Implemented directly in this session (no implementation subagent).
+- First run: the Redis-key check double-prefixed the key (`exists()` applies `make_key` itself), so it read 0 throughout. Fixed. The TTL and the leak-recovery steps were added in the same rerun.
+- The masked user is Stock User, because Sales User can read Customer permlevel 1.
+- After review the harness gained scenarios (filters, sorting and aggregates; field-level-read documents; ordinary-user session cases; child-row fresh computation and cache reset; Administrator) and a second fixture user (`spike.unmasked@example.com`). Rerun 2026-10-31 21:53 UTC, about 5 s, exit 0. The new leak findings were verified as Administrator: same top 3 and the same SUM and MAX.
+- Commits: `e616293` (harness, first results), `d8e1a7e` (report), `a72731f` (review fixes and new evidence).
+
 ## Spec Change Log
 
 ## Review Triage Log
+
+| # | Finding | Verdict | Evidence | Route |
+|---|---------|---------|----------|-------|
+| 1 | Filters, sorting and aggregates on masked fields untested | high | Rerun: equality and range filters, ordering, SUM and MAX all use real values | patch (scenario; AD-6 clarification) |
+| 2 | Fresh computation and cache reset only checked for the parent | medium | Child keys are separate | patch (child columns; `clear_cache(doctype="Sales Order")` step) |
+| 3 | Session-user claim rests on Administrator only | medium | Administrator is special-cased | patch (two ordinary-user pairings) |
+| 4 | "get_doc is not masked" too broad | medium | `apply_fieldlevel_read_permissions()` masks | patch (scenario; claim narrowed) |
+| 5 | Off-run never asserted unmasked | medium | Only the on-run was asserted | patch (assertion) |
+| 6 | Overhead as a difference of p95s; no 200-row page; percent overhead not stated | low | Spec for timing | patch (paired diffs, 200 rows, percent) |
+| 7 | Fresh cost measured warm only | low | Local cache hit | patch (first-call-of-request timings) |
+| 8 | Environment rows not recorded by the harness | low | `environment()` lacked Redis, Python, CPU | patch |
+| 9 | Evidence Markdown truncated; types lost | low | `[:900]` slices, `str()` of lists and dates | patch (fenced JSON, typed recursion) |
+| 10 | Fresh computation not special-cased for Administrator | medium | Frappe returns `[]` for Administrator | patch (AD-5 clarification 4; recorded value) |
+| 11 | Unmask flag not repaired after a partial fixture run | low | Set inside the exists check | patch |
+| 12 | No admin guidance for revocation; no upstream note | low | Leak reaches Frappe's own surfaces | patch (report section) |
+| 13 | Fixtures change the shared site without saying so | low | Custom DocPerm and Property Setters | patch (docstring, report) |
+| 14 | Other fieldtypes, Link and `fetch_from` leaks untested | medium | Matrix scope | patch (limitation); not run |
+| 15 | Role changes other than a User save untested | medium | The roles cache could stay stale | patch (limitation); not run |
+| 16 | `cached_masked_child_no_parent` result unexplained | low | Masking metadata lives on the child | patch (report sentence) |
+| 17 | Paths tied to one machine; no cwd check | low | Documented layout | rejected |
+| 18 | `git describe` failure gives empty versions | low | Same as Spike 0.1 | rejected |
+| 19 | Exceptions outside `attempt()` abort the run; zero-row results | low | Fails loudly; reruns in 5 s | rejected |
+| 20 | Timing method differs from the spec's wording | low | Method stated in the report | rejected |
 
 ## Verification
 
