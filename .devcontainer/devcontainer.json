@@ -13,12 +13,16 @@
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.14"
     },
-    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "2.102.0"
+    }
   },
   "overrideFeatureInstallOrder": [
     "ghcr.io/devcontainers/features/node",
     "ghcr.io/devcontainers/features/python",
-    "ghcr.io/anthropics/devcontainer-features/claude-code"
+    "ghcr.io/anthropics/devcontainer-features/claude-code",
+    "ghcr.io/devcontainers/features/github-cli"
   ],
   "remoteEnv": {
     "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"

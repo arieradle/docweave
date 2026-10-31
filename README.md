@@ -142,7 +142,10 @@ Existing codespaces keep their volumes. They still need a reset after a bump (se
 `main` is protected. Work happens on a branch, one per story or fix (for example
 `story/1-1-installable-app` or `chore/...`), and reaches `main` through a pull request.
 
-- Push the branch and open the pull request from the link `git push` prints.
+- Push the branch and open the pull request with `gh pr create` (or from the link
+  `git push` prints). The devcontainer installs the GitHub CLI (`gh` 2.102.0). In
+  Codespaces it is signed in automatically through the codespace's `GITHUB_TOKEN`;
+  in a local devcontainer, run `gh auth login` once.
 - The `dev-image / devcontainer` check runs on every pull request. If the PR touches
   `.devcontainer/` or `.github/workflows/dev-image.yml`, it builds the image and
   smoke-tests the bench, but never publishes. It also checks that the image
