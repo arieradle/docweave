@@ -1,0 +1,5 @@
+# The devcontainer and CI decide whether every new codespace and prebuild works.
+# Changes to them are reviewed by the owner. (Required reviews only take effect
+# once the main ruleset requires code owner review; see README.)
+/.devcontainer/ @arieradle
+/.github/ @arieradle

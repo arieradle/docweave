@@ -1,6 +1,11 @@
-# Builds the prebuilt DocWeave dev image (.devcontainer/Dockerfile) and
-# publishes it to GitHub Container Registry, tagged with the Frappe and ERPNext
-# versions pinned in .devcontainer/post-create.sh.
+# Builds the prebuilt DocWeave dev image (.devcontainer/Dockerfile), smoke-tests
+# it, and on main publishes it to GitHub Container Registry, tagged with the
+# Frappe and ERPNext versions pinned in .devcontainer/post-create.sh.
+#
+# On every pull request the "devcontainer" job is the required check for main
+# (README, "Branches and pull requests"). It always runs and reports, so it can
+# be required. The image build and smoke test run only when the PR touches
+# .devcontainer/ or this workflow, and nothing is pushed from a PR.
 #
 # Codespaces use the image by digest (.devcontainer/docker-compose.yml), so a
 # rebuild changes nothing until compose is pointed at the new digest. That
@@ -15,27 +20,61 @@ on:
       - .devcontainer/Dockerfile
       - .devcontainer/post-create.sh
       - .github/workflows/dev-image.yml
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
-  group: dev-image
-  cancel-in-progress: false
+  group: dev-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
-    # Only main publishes: a manual run on another branch must not overwrite
-    # the version tag main's devcontainer pulls.
-    if: github.ref == 'refs/heads/main'
+  devcontainer:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Only a push to main publishes. A pull request or a manual run elsewhere
+      # must never overwrite the version tag main's devcontainer pulls.
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to build
+        id: scope
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "build=true" >> "${GITHUB_OUTPUT}"
+            echo "Not a pull request: building."
+            exit 0
+          fi
+          changed="$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")"
+          echo "Changed files:"; echo "${changed}"
+          if grep -qE '^(\.devcontainer/|\.github/workflows/dev-image\.yml$)' <<<"${changed}"; then
+            echo "build=true" >> "${GITHUB_OUTPUT}"
+            echo "The PR touches the devcontainer: building and smoke-testing the image."
+          else
+            echo "build=false" >> "${GITHUB_OUTPUT}"
+            echo "The PR does not touch the devcontainer: nothing to build."
+          fi
+
+      - name: Check that the compose image exists
+        run: |
+          image="$(sed -n 's/^    image: \(ghcr\.io\/.*\)$/\1/p' .devcontainer/docker-compose.yml)"
+          test -n "${image}" || { echo "No ghcr.io image in docker-compose.yml"; exit 1; }
+          echo "docker-compose.yml uses ${image}"
+          docker buildx imagetools inspect "${image}" >/dev/null \
+            || { echo "::error::${image} does not exist in GHCR (publish it first, then update docker-compose.yml)"; exit 1; }
+          echo "Image exists."
 
       - name: Read pinned versions
+        if: steps.scope.outputs.build == 'true'
         id: versions
         run: |
           frappe="$(sed -n 's/^FRAPPE_TAG="\(.*\)"$/\1/p' .devcontainer/post-create.sh)"
@@ -46,17 +85,13 @@ jobs:
             echo "image=${image}"
             echo "tag=frappe-${frappe}-erpnext-${erpnext}"
           } >> "${GITHUB_OUTPUT}"
-          echo "Building ${image}:frappe-${frappe}-erpnext-${erpnext}"
+          echo "Building ${image}:frappe-${frappe}-erpnext-${erpnext} (publish: ${PUBLISH})"
 
-      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
-      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.scope.outputs.build == 'true'
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Build
+        if: steps.scope.outputs.build == 'true'
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .devcontainer
@@ -67,6 +102,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Smoke-test the bench in the image
+        if: steps.scope.outputs.build == 'true'
         run: |
           docker run --rm --user vscode docweave-dev:smoke bash -euo pipefail -c '
             cd /home/vscode/frappe-bench
@@ -79,7 +115,16 @@ jobs:
             echo "bench OK, no site in the image"
           '
 
+      - name: Log in to GHCR
+        if: steps.scope.outputs.build == 'true' && env.PUBLISH == 'true'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Push
+        if: steps.scope.outputs.build == 'true' && env.PUBLISH == 'true'
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .devcontainer
