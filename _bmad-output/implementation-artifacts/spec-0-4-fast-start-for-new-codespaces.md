@@ -72,11 +72,11 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `.devcontainer/post-create.sh` -- add `DOCWEAVE_STAGE=image`; add orphaned-site handling (move aside, recreate) -- image build and snapshot recovery
-- [ ] `.devcontainer/Dockerfile` -- base digest, Node and Yarn, the image stage as `vscode` -- the prebuilt bench
-- [ ] `.github/workflows/dev-image.yml` -- build and publish on version changes -- rebuilds on bumps
-- [ ] `.devcontainer/devcontainer.json`, `.devcontainer/docker-compose.yml` -- `onCreateCommand`; image switch per the rollout decision -- fast start
-- [ ] `README.md` -- prebuilds, image access, version bump procedure -- the human's settings steps
+- [x] `.devcontainer/post-create.sh` -- add `DOCWEAVE_STAGE=image`; add orphaned-site handling (move aside, recreate) -- image build and snapshot recovery
+- [x] `.devcontainer/Dockerfile` -- base digest, Node and Yarn, the image stage as `vscode` -- the prebuilt bench
+- [x] `.github/workflows/dev-image.yml` -- build and publish on version changes -- rebuilds on bumps
+- [x] `.devcontainer/devcontainer.json`, `.devcontainer/docker-compose.yml` -- `onCreateCommand`; image switch per the rollout decision -- fast start
+- [x] `README.md` -- prebuilds, image access, version bump procedure -- the human's settings steps
 
 **Acceptance Criteria:**
 - Given the image is published, when a new codespace starts, then setup does not clone or install Frappe or ERPNext.
@@ -84,6 +84,19 @@ context:
 - Given a version bump pushed to `main`, then the workflow publishes an image tagged with both versions.
 
 ## Implementation Notes
+
+- Implemented directly in this session (no implementation subagent).
+- **Python.** The existing venv was bound to the Python feature's interpreter, which a `docker build` doesn't have (features apply after the Dockerfile). The bench Python is now uv-managed, pinned to 3.14.9, the newest CPython uv 0.13.5 can download (3.14.10 isn't available to it). `--no-bin` keeps uv from putting a `python3.14` shim ahead of the feature on PATH. This codespace's venv was healthy and untouched.
+- **Orphaned sites** go to `~/frappe-bench/orphaned-sites/`, not inside `sites/`, so bench never treats them as sites.
+- **Local tests (this container, no Docker):**
+  - full rerun: exit 0 in 9–12 s
+  - image stage: stops before services and the site, 2 s
+  - an unknown stage value: exit 1
+  - orphaned site on a throwaway `orphan.localhost`: created, database dropped, rerun moved the folder aside and recreated the site with ERPNext on a new database; the test site was removed afterwards and `dev.localhost` restored as the default
+- **Workflow run `41247348743`** (`eecaa98`): success in about 4.5 minutes. The image `ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1` is linux/amd64, 0.97 GB compressed, with a 572 MB layer from the image-stage setup.
+- **Visibility.** Contrary to the spec's assumption, the package was readable anonymously right after the first publish (pull token plus manifest returned 200). It took the public repository's visibility, so no manual step was needed. The README says so.
+- **Rollout step 2:** `docker-compose.yml` now uses the image.
+- **Not verified here:** a new codespace from the image, and prebuilds. Both need the human: enabling prebuilds in repository settings, and creating a codespace.
 
 ## Spec Change Log
 

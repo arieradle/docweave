@@ -5,9 +5,12 @@ name: docweave
 
 services:
   app:
-    # mcr.microsoft.com/devcontainers/base:ubuntu26.04, pinned by digest so a
-    # rebuild cannot silently change the system Python the bench venv uses.
-    image: mcr.microsoft.com/devcontainers/base:ubuntu26.04@sha256:91eff046d5c12318fc98e59258982b87ba896c467427ed8b5dab5a02107a5db7
+    # Prebuilt dev image (.devcontainer/Dockerfile, published by
+    # .github/workflows/dev-image.yml): the pinned devcontainer base with the
+    # bench, Frappe and ERPNext already installed. A new frappe-bench volume is
+    # seeded from it. The tag must match the pins in post-create.sh; bump it
+    # only after the workflow has published the new tag (README, "Fast start").
+    image: ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1
     command: sleep infinity
     volumes:
       - ..:/workspaces/docweave:cached

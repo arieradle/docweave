@@ -7,7 +7,7 @@ The devcontainer runs Docker Compose with four services:
 
 | Service | Image | Purpose |
 |---------|-------|---------|
-| `app` | `mcr.microsoft.com/devcontainers/base:ubuntu26.04` (pinned by digest) with Python 3.14, Node 24 and Claude Code | Your shell, the bench |
+| `app` | `ghcr.io/arieradle/docweave-dev` (the pinned devcontainer base with the bench prebuilt, see "Fast start") with Python 3.14, Node 24 and Claude Code | Your shell, the bench |
 | `mariadb` | `mariadb:11.8` (utf8mb4) | Database |
 | `redis-cache` | `redis:7-alpine` | Frappe cache |
 | `redis-queue` | `redis:7-alpine` | Background jobs and realtime |
@@ -98,11 +98,10 @@ a new `frappe-bench` volume is seeded from the image, so setup skips `bench init
 
 One-time settings (repository owner):
 
-1. After the first workflow run, open the package (**your profile > Packages >
-   docweave-dev > Package settings**) and set **Change visibility** to **Public**.
-   GHCR makes a new package private, even from a public repository. Public lets
-   Codespaces (and forks) pull it without access settings. If you keep it private,
-   add this repository under **Manage Codespaces access** in the same settings page.
+1. The package is public (it inherited this public repository's visibility on the
+   first publish, 2026-10-31), so Codespaces and forks pull it without settings. If it
+   is ever made private, add this repository under **Manage Codespaces access** in
+   **your profile > Packages > docweave-dev > Package settings**.
 2. Enable prebuilds: **repository Settings > Codespaces > Set up prebuild**, branch
    `main`, the default devcontainer, trigger **On configuration change**, and your region.
    A prebuild runs `onCreateCommand` (the same `post-create.sh`), so `dev.localhost`
