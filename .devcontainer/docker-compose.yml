@@ -8,9 +8,12 @@ services:
     # Prebuilt dev image (.devcontainer/Dockerfile, published by
     # .github/workflows/dev-image.yml): the pinned devcontainer base with the
     # bench, Frappe and ERPNext already installed. A new frappe-bench volume is
-    # seeded from it. The tag must match the pins in post-create.sh; bump it
-    # only after the workflow has published the new tag (README, "Fast start").
-    image: ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1
+    # seeded from it. Pinned by digest: the workflow republishes the tag on
+    # every script change, so the digest is what keeps codespaces on a known
+    # image. The tag must match the pins in post-create.sh. Update tag and
+    # digest together, only after the workflow has published them (README,
+    # "Fast start").
+    image: ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1@sha256:43e5e4dbc459e7450d8d8051bbdd708d9502694f3dffeb54792792c72b195e47
     command: sleep infinity
     volumes:
       - ..:/workspaces/docweave:cached

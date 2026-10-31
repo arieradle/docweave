@@ -7,6 +7,9 @@
 # carries that bench, and a new frappe-bench volume is seeded from it, so the
 # full run then only checks the bench and creates the site.
 #
+# DOCWEAVE_SITE overrides the site name (default dev.localhost), for testing
+# the setup on a throwaway site.
+#
 # Sets up rtk, the system packages Frappe needs, uv, frappe-bench, a Frappe
 # bench with ERPNext and the site dev.localhost. The bench lives in the
 # `frappe-bench` volume and the database in `mariadb-data`, so a rebuild
@@ -44,6 +47,7 @@ SENTINEL="${BENCH_DIR}/.docweave-bench-ready"
 
 STAGE="${DOCWEAVE_STAGE:-full}"
 [[ "${STAGE}" == "full" || "${STAGE}" == "image" ]] || { echo "Unknown DOCWEAVE_STAGE: ${STAGE}" >&2; exit 1; }
+[[ "${SITE}" =~ ^[a-z0-9][a-z0-9.-]*$ ]] || { echo "Invalid DOCWEAVE_SITE: ${SITE}" >&2; exit 1; }
 
 export PATH="${HOME}/.local/bin:${PATH}"
 
@@ -74,8 +78,12 @@ if [[ "${STAGE}" == "full" ]]; then
 step "Install rtk ${RTK_VERSION}"
 # rtk compresses shell command output for Claude Code (https://github.com/rtk-ai/rtk).
 # The installer verifies the release checksum and installs to ~/.local/bin.
-curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/${RTK_VERSION}/install.sh" \
-  | RTK_VERSION="${RTK_VERSION}" sh
+if [[ "$("${HOME}/.local/bin/rtk" --version 2>/dev/null | awk '{print $2}')" == "${RTK_VERSION#v}" ]]; then
+  echo "rtk ${RTK_VERSION} already installed."
+else
+  curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/refs/tags/${RTK_VERSION}/install.sh" \
+    | RTK_VERSION="${RTK_VERSION}" sh
+fi
 
 step "Register rtk hook for Claude Code"
 # stdin from /dev/null: post-create has no one to answer a prompt, and rtk
@@ -252,16 +260,22 @@ site_apps() {
 # kept the bench volume but not MariaDB's) is moved aside, never deleted, and
 # the site is created again. Only a database that is certainly absent counts.
 if [[ -f "sites/${SITE}/site_config.json" ]]; then
-  db_name="$(env/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1]))["db_name"])' \
-    "sites/${SITE}/site_config.json")"
+  step "Check database of site ${SITE}"
+  db_name="$(env/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("db_name", ""))' \
+    "sites/${SITE}/site_config.json" 2>&1)" \
+    || die "Cannot read sites/${SITE}/site_config.json: ${db_name}"
+  # Frappe's db names are generated hex-like identifiers; anything else is unexpected.
+  [[ "${db_name}" =~ ^[A-Za-z0-9_]+$ ]] \
+    || die "sites/${SITE}/site_config.json has no usable db_name (got '${db_name}'). Nothing was changed."
   db_found="$(mariadb -h "${DB_HOST}" -uroot -p"${DB_ROOT_PASSWORD}" -N \
-    -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${db_name}'")"
+    -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${db_name}'" 2>&1)" \
+    || die "Cannot ask MariaDB whether database ${db_name} exists: ${db_found}. Nothing was changed."
   if [[ "${db_found}" == "0" ]]; then
     step "Recover site ${SITE} without a database"
     # Outside sites/, so bench does not treat it as a site.
     mkdir -p orphaned-sites
-    orphan="orphaned-sites/${SITE}.$(date +%Y%m%d%H%M%S)"
-    mv "sites/${SITE}" "${orphan}"
+    orphan="orphaned-sites/${SITE}.$(date +%Y%m%d%H%M%S).$$"
+    mv -T "sites/${SITE}" "${orphan}"
     echo "Database ${db_name} for ${SITE} does not exist in MariaDB; moved the site folder to ${orphan} and creating the site again."
   fi
 fi

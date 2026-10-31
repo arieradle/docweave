@@ -61,8 +61,8 @@ docker compose -p docweave -f .devcontainer/docker-compose.yml down -v
 ```
 
 Or remove the `docweave_frappe-bench`, `docweave_mariadb-data` and
-`docweave_redis-queue-data` volumes with `docker volume rm`. The next build installs
-everything again.
+`docweave_redis-queue-data` volumes with `docker volume rm`. The next build seeds a new
+bench volume from the prebuilt image (see "Fast start") and only creates the site again.
 
 ### If setup fails
 
@@ -77,7 +77,12 @@ bash .devcontainer/post-create.sh
 Reruns are safe: finished steps are skipped. Setup never recreates an existing site.
 The one exception is a site whose database is certainly gone, for example a Codespaces
 prebuild snapshot that kept the bench but not MariaDB's data. Setup moves that site
-folder to `~/frappe-bench/orphaned-sites/` (nothing is deleted) and creates the site again.
+folder to `~/frappe-bench/orphaned-sites/` (nothing is deleted), logs
+`==> Recover site dev.localhost without a database`, and creates the site again.
+Folders in `orphaned-sites/` are never cleaned up automatically; they may hold the old
+site's private files. Delete them yourself once you don't need them.
+If setup can't tell whether the database exists (MariaDB unreachable, unreadable
+`site_config.json`), it stops and changes nothing.
 If the site exists but cannot be read, it stops and tells you; drop the site
 (`bench drop-site dev.localhost --db-root-password 123 --force`) or reset the volumes,
 then rerun. If the bench's Python environment is broken (for example after a base
@@ -92,9 +97,12 @@ and publishes `ghcr.io/arieradle/docweave-dev:frappe-<tag>-erpnext-<tag>` (for e
 `frappe-v16.53.0-erpnext-v16.52.1`). It runs on every push to `main` that changes the
 Dockerfile, `post-create.sh` or the workflow, and from **Actions > dev-image > Run workflow**.
 The image holds the bench with Frappe and ERPNext, their Python and Node dependencies
-and built assets. It holds no site and no database. When `docker-compose.yml` uses it,
-a new `frappe-bench` volume is seeded from the image, so setup skips `bench init` and
-`get-app` and only creates the site.
+and built assets. It holds no site and no database. Before pushing, the workflow
+smoke-tests the image (bench version, `import frappe, erpnext`, no site inside). Only
+runs on `main` publish. `docker-compose.yml` uses the image **by digest**, and a new
+`frappe-bench` volume is seeded from it, so setup skips `bench init` and `get-app` and
+only creates the site. The image is `linux/amd64` only (what Codespaces runs); on an
+arm64 machine, local Docker runs it under emulation.
 
 One-time settings (repository owner):
 
@@ -106,15 +114,25 @@ One-time settings (repository owner):
    `main`, the default devcontainer, trigger **On configuration change**, and your region.
    A prebuild runs `onCreateCommand` (the same `post-create.sh`), so `dev.localhost`
    is created inside the prebuild. If a prebuild ever comes up without the database,
-   setup recreates the site automatically (see "If setup fails").
+   setup recreates the site automatically (see "If setup fails"). To check that a
+   codespace really used the prebuilt site, look in its creation log: a
+   `==> Create site` or `==> Recover site` step means the site was built again.
+   `postCreateCommand` reruns the same script after creation (about 10 s; every step
+   is skipped). It is what recovers a prebuild that lacks the database.
 
-**Bumping Frappe or ERPNext** takes two pushes, because the devcontainer must not point
-at an image that does not exist yet:
+**Changing the image** (bumping Frappe, ERPNext, Python, frappe-bench, uv or Node, or
+any change to `post-create.sh`) takes two pushes, because the devcontainer must not
+point at an image that does not exist yet:
 
-1. Change the pinned constants in `.devcontainer/post-create.sh` and push to `main`.
-   The workflow publishes the image with the new tag. Wait for it to finish.
-2. Change `app.image` in `.devcontainer/docker-compose.yml` to the new tag and push.
-   That is a devcontainer configuration change, so prebuilds refresh.
+1. Make the change and push to `main`. The workflow builds, smoke-tests and publishes
+   the image. Wait for it to finish, then copy the digest from the run's Push step (or
+   from the package page).
+2. Change `app.image` in `.devcontainer/docker-compose.yml` to the new tag **and**
+   digest, and push. That is a devcontainer configuration change, so prebuilds refresh.
+
+Between the two pushes, a codespace created from `main` gets the old image but the new
+pins. For a Frappe or ERPNext bump, setup then stops with "Version drift". Do the two
+pushes back to back, or create codespaces from the commit before step 1 meanwhile.
 
 Existing codespaces keep their volumes. They still need a reset after a bump (see
 "Version mismatch").

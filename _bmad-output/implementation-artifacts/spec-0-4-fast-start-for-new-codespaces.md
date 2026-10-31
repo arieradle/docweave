@@ -2,7 +2,7 @@
 title: 'Fast start for new codespaces'
 type: 'chore'
 created: '2026-10-31'
-status: 'in-progress'
+status: 'in-review'
 baseline_commit: '73462cd3ef922ce93beacc35a39916e80a327961'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -53,14 +53,14 @@ context:
 ## Code Map
 
 - `.devcontainer/post-create.sh` -- the setup script. Its constants (`FRAPPE_TAG`, `ERPNEXT_TAG`, `BENCH_VERSION`, `UV_VERSION`) are the version pins. It already adopts an existing bench (sentinel `~/frappe-bench/.docweave-bench-ready`, or `apps/frappe` plus `sites/apps.txt`), so a volume seeded from the image skips `bench init` and `get-app`. It needs:
-  - a `DOCWEAVE_STAGE=image` mode that stops after `get-app` and skips the rtk, service-wait and `set-config` steps (no services at build time)
+  - a `DOCWEAVE_STAGE=image` mode that stops after `get-app` and skips the rtk and service-wait steps (no services at build time). `set-config -g` still runs: it only writes `common_site_config.json`.
   - the orphaned-site handling: `site_config.json` exists but its `db_name` is absent from MariaDB
 - `.devcontainer/Dockerfile` -- new.
   - `FROM` the same pinned base digest as `docker-compose.yml`.
   - Install Node 24.22.1 and Yarn 1.22.22, the versions in use today. The Node feature isn't applied during `docker build`, but `bench init` needs Node.
   - Run `post-create.sh` in image stage as `vscode`.
-  - The bench venv binds to `/usr/bin/python3.14`, as today.
-- `.devcontainer/docker-compose.yml` -- `app.image` switches to `ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1` (rollout step 2). Docker seeds an empty named volume (`frappe-bench`) from the image's `/home/vscode/frappe-bench`.
+  - The bench venv binds to a uv-managed Python 3.14.9 in `~/.local/share/uv`, so it exists inside the image (changed during implementation; see Implementation Notes).
+- `.devcontainer/docker-compose.yml` -- `app.image` switches to `ghcr.io/arieradle/docweave-dev:frappe-v16.53.0-erpnext-v16.52.1`, pinned by digest (rollout step 2). Docker seeds an empty named volume (`frappe-bench`) from the image's `/home/vscode/frappe-bench`.
 - `.devcontainer/devcontainer.json` -- `onCreateCommand` runs `post-create.sh`. `postCreateCommand` reruns it: it's idempotent (about 8 s) and covers a prebuild snapshot without the database. The Node and Python features stay.
 - `.github/workflows/dev-image.yml` -- new.
   - Triggers: `push` to `main` on `.devcontainer/Dockerfile` or `.devcontainer/post-create.sh`, plus `workflow_dispatch`.
@@ -101,6 +101,26 @@ context:
 ## Spec Change Log
 
 ## Review Triage Log
+
+| # | Finding | Verdict | Evidence | Route |
+|---|---------|---------|----------|-------|
+| 1 | Image tag mutable; republished on every script change; compose not pinned by digest | medium | The workflow pushes the same tag on any trigger path | patch (compose pinned by digest; README: update tag and digest together) |
+| 2 | Tag omits other image inputs (Python, bench, uv, Node, base) | medium | Those inputs change the image under one tag | patch (covered by the digest pin; README covers every image change) |
+| 3 | Manual run on another branch overwrites main's tag | medium | `workflow_dispatch` had no branch guard | patch (`if: github.ref == 'refs/heads/main'`) |
+| 4 | Image pushed without a smoke test | medium | Build then push | patch (load, check bench, imports and no site, then push) |
+| 5 | Actions pinned to tags, not SHAs | low | Job has `packages: write` | patch (SHA pins with version comments) |
+| 6 | Recovery block: no step name, unclear failures, `db_name` unescaped in SQL | medium | KeyError or mariadb failure fell to the ERR trap | patch (own step, `die` with messages, `db_name` validated; tested) |
+| 7 | Two recoveries in one second nest folders | low | `mv` into an existing directory | patch (`.$$` suffix, `mv -T`) |
+| 8 | `DOCWEAVE_SITE` undocumented and unvalidated | low | New variable | patch (header comment, regex; tested with `../evil`) |
+| 9 | Node feature floating `24` vs image Node 24.22.1 | low | Two Nodes could differ | patch (feature pinned to 24.22.1) |
+| 10 | onCreate plus postCreate run setup twice; rtk downloaded twice | low | Both hooks run on a normal create | patch (rtk skipped when already at the pin; README explains the rerun) |
+| 11 | README Reset outdated; no prebuild check; no orphan cleanup advice; amd64 only undocumented | low | README text | patch |
+| 12 | Gap between bump push 1 and 2 breaks new codespaces | medium | Old image, new pins means version drift | patch (README warns, with a workaround) |
+| 13 | Spec Code Map out of date (Python binding, `set-config`, digest) | low | Implementation diverged | patch (Code Map updated) |
+| 14 | Recovery path has no automated test | medium | No shell or CI test harness | defer |
+| 15 | Nothing checks the compose tag against the pins | medium | Two-push design makes a mismatch intended between pushes | defer |
+| 16 | Multiple `FRAPPE_TAG=` lines would break tag extraction | low | Needs a malformed script | rejected |
+| 17 | arm64 / multi-arch build | low | Codespaces is amd64; documented | rejected (documented) |
 
 ## Verification
 

@@ -40,7 +40,7 @@ development_status:
   0-1-spike-time-the-per-candidate-permission-check-ad-4: done
   0-2-re-measure-ad-4-with-the-review-fixes-from-spike-0-1: done
   0-3-spike-verify-masking-at-runtime-and-time-its-cost-ad-5: done
-  0-4-fast-start-for-new-codespaces: in-progress
+  0-4-fast-start-for-new-codespaces: review
   epic-0-retrospective: optional
 
   epic-1: backlog

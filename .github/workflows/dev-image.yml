@@ -2,9 +2,10 @@
 # publishes it to GitHub Container Registry, tagged with the Frappe and ERPNext
 # versions pinned in .devcontainer/post-create.sh.
 #
-# After a version bump: wait for this workflow, then point
-# .devcontainer/docker-compose.yml at the new tag. That devcontainer change
-# makes Codespaces prebuilds refresh (README, "Fast start").
+# Codespaces use the image by digest (.devcontainer/docker-compose.yml), so a
+# rebuild changes nothing until compose is pointed at the new digest. That
+# devcontainer change is also what makes Codespaces prebuilds refresh
+# (README, "Fast start"). Actions are pinned to commit SHAs.
 name: dev-image
 
 on:
@@ -26,10 +27,13 @@ concurrency:
 
 jobs:
   build:
+    # Only main publishes: a manual run on another branch must not overwrite
+    # the version tag main's devcontainer pulls.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Read pinned versions
         id: versions
@@ -44,15 +48,39 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
           echo "Building ${image}:frappe-${frappe}-erpnext-${erpnext}"
 
-      - uses: docker/setup-buildx-action@v3.11.1
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
-      - uses: docker/login-action@v3.4.0
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6.18.0
+      - name: Build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: docweave-dev:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the bench in the image
+        run: |
+          docker run --rm --user vscode docweave-dev:smoke bash -euo pipefail -c '
+            cd /home/vscode/frappe-bench
+            test -f .docweave-bench-ready
+            grep -qx frappe sites/apps.txt
+            grep -qx erpnext sites/apps.txt
+            /home/vscode/.local/bin/bench --version
+            env/bin/python -c "import frappe, erpnext; print(\"frappe\", frappe.__version__, \"erpnext\", erpnext.__version__)"
+            test -z "$(ls sites | grep -v -e ^assets\$ -e ^apps.txt\$ -e ^apps.json\$ -e ^common_site_config.json\$)"
+            echo "bench OK, no site in the image"
+          '
+
+      - name: Push
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .devcontainer
           file: .devcontainer/Dockerfile
