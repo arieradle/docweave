@@ -25,6 +25,7 @@ Measure the two riskiest architecture bets on a real Frappe v16 + ERPNext site b
 - **Document-level checks use full Frappe parity.** For each candidate row, load the document with `frappe.get_doc` and call `frappe.has_permission(doctype, "read", doc=doc, user=user)`. Returned values always come from the masked query row, never the loaded document. A user with `select` but not `read` gets nothing, without a scan. A cheaper "build the document from the row" shortcut was rejected because it misses child-row User Permissions, DocShare and permlevel-hidden fields.
 - **Masking is metadata-driven.** The masked set is `meta.get_masked_fields(parenttype=...)` combined with a fresh per-request computation from the user's current roles (via `meta.get_permlevel_access("mask", ...)`), because Frappe caches masked fields per user and may not clear that cache when roles change. Masked values become `null` plus a `MASKED` error in the API, never compared against placeholder strings.
 - Frappe v16 masks with type-specific placeholders, for example `XXXXXXXX` by default, `XX-XX-XXXX` for dates, and partial values for phone and email.
+- **AD-4 outcome (Spikes 0.1 and 0.2):** the full-parity check stays. The default scan budget is lowered from 2,000 to 200 and applied to the architecture and Stories 1.2 and 2.3.
 - Useful v16 APIs: `IntegrationTestCase.assertQueryCount`, `frappe.has_permission(..., ignore_share_permissions=...)`, `frappe.permissions.has_user_permission`, `frappe.model.utils.mask.mask_field_value`.
 
 ## Cross-Story Dependencies

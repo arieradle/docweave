@@ -387,7 +387,9 @@ flowchart TB
 - **Redacting raw Link names:** v1 matches Frappe desk (AD-7).
 - **Subscriptions and file uploads:** out of v1.
 - **Persisted operations:** later. AD-10 covers agent safety.
-- **Default limit values:** maximum page 100, scan budget 2,000, depth 8, `child_fanout_estimate` 50, `max_child_rows` 10,000. To be tuned in the first slice. `[ASSUMPTION]`
+- **Default limit values:** maximum page 100, scan budget 200, depth 8, `child_fanout_estimate` 50, `max_child_rows` 10,000.
+  - The scan budget of 200 is measured. Spikes 0.1 and 0.2 (`_bmad-output/implementation-artifacts/spikes/`) show it caps one request at about one REST page (1.9 s p95 for 100-item Sales Orders on a 2-core dev box), against 5–21 s at 2,000. It also meets AD-4's target per readable document. A heavily restricted user gets short pages, as FR-8 intends.
+  - The other values are still to be tuned in the first slice. `[ASSUMPTION]`
 - **Latency targets for FR-5:** to be set after the first slice. Query-count behaviour is fixed by AD-3.
 - **Frappe's built-in MCP (`/api/v2/mcp`):** DocWeave stays a complementary typed, batched read layer. Revisit after v1.
 

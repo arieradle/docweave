@@ -281,6 +281,10 @@ So that nothing is reachable until I configure it.
 **When** Frappe has queued messages
 **Then** the body contains only GraphQL JSON, with no `_server_messages`, `exc` or `message` keys
 
+**Given** a fresh install
+**When** an admin opens DocWeave Settings
+**Then** the limits show the architecture's defaults: maximum page 100, scan budget 200, depth 8, `child_fanout_estimate` 50, `max_child_rows` 10,000
+
 **And** DocWeave Settings is editable only by System Manager and has change tracking enabled
 
 ### Story 1.3: Schema generation from Exposed DocTypes
@@ -484,6 +488,10 @@ So that paging always makes progress and never errors on the scan limit.
 **Given** the candidates are exhausted
 **When** the last page returns
 **Then** `hasNextPage` is `false` and `endCursor` is `null`
+
+**Given** the default scan budget of 200 (AD-4, measured in Spikes 0.1 and 0.2) and a user who can read none of 5,000 candidates
+**When** a list request runs
+**Then** it permission-checks at most 200 candidates and returns a short page with `scanLimitReached: true`
 
 ### Story 2.4: Depth and cost limits
 
