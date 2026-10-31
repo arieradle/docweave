@@ -71,6 +71,8 @@ Arrows are the only allowed import directions. `execution` and `schema` never im
 - **Rule:**
   - Every data read goes through `adapter._authorized_query(doctype, *, fields, filter: FilterIR, order: OrderSpec, after: KeysetPosition | None, limit, parent_doctype=None, parentfield=None, parent_names=None, keys=None)`.
   - It calls `frappe.qb.get_query` with `user=frappe.session.user`, `ignore_permissions=False`, `ignore_user_permissions=False`, then runs the query so that Frappe's masking applies.
+  - **It runs as the session user only.** Frappe masks for `frappe.session.user` and ignores `get_query(user=)`, so another user would get the session user's masked view. `_authorized_query` asserts `user == frappe.session.user`, and DocWeave never switches the session to another user for a query. (Spike 0.3.)
+  - **A child-table read passes `parent_doctype`.** Without it Frappe raises `PermissionError`. With it, masking follows the parent's DocPerm `mask` setting. (Spike 0.3.)
   - The parameter set is closed: no `**kwargs`, no raw SQL, no Frappe-format filters from callers.
 
 ### AD-3: Two-phase execution; resolvers do no I/O [ADOPTED]
@@ -101,7 +103,10 @@ Arrows are the only allowed import directions. `execution` and `schema` never im
 - **Prevents:** detecting masks by comparing strings, placeholder coercion crashes, null-bubbling, and stale masking after role changes.
 - **Rule:**
   - The masked set is the **union** of `meta.get_masked_fields(parenttype=...)` and a fresh per-request computation from the user's current roles via the DocPerm `mask` setting. This means a role revocation takes effect without waiting for Frappe's per-user cache to clear.
-  - Readable fields come from Frappe's permitted-fields logic for the user.
+    - **Why the union is required.** Frappe caches each user's masked set in Redis (`masked_fields::<doctype>::<parent>::<user>`) with no expiry. Role changes, User saves and `clear_cache(user=...)` don't clear it; only `clear_cache(doctype=...)` or a full clear does. Without the fresh computation, a revoked unmask permission would keep showing real values. (Spike 0.3.)
+    - **The reverse is accepted.** A newly granted unmask permission still shows `MASKED` until Frappe's cache for that DocType is cleared, because Frappe has already replaced the value. The admin docs tell admins to clear the DocType cache after granting or revoking unmask.
+    - **Administrator is special-cased** in the fresh computation the same way Frappe special-cases it (no masked fields), so the union never masks Administrator's values when `allow_administrator` is on.
+  - Readable fields come from Frappe's permitted-fields logic for the user, computed **before** the query. Frappe silently drops above-permlevel fields from results (no key, no error), so `FORBIDDEN` can't be inferred from the returned row. (Spike 0.3.)
   - In `Row`, a masked value becomes `MASKED` and a selected field that is unreadable at its permlevel becomes `FORBIDDEN`. The resolver emits `null` plus that code.
   - **Nullability.** All root fields and every DocType field except `name` are nullable. Inside a connection, `edges`, `node`, `pageInfo` and its booleans are non-null. A child list is `[ChildType!]` and the list itself is nullable. A test runs two aliased connections, one invalid, and asserts that the other still returns data.
 
@@ -111,6 +116,8 @@ Arrows are the only allowed import directions. `execution` and `schema` never im
 - **Prevents:** leaking hidden values through filter, sort or link tricks.
 - **Rule:**
   - Before any query runs, the adapter rejects with `FORBIDDEN` any `FilterIR` or `OrderSpec` field that is unreadable or masked for the user.
+    - **This is required, not defensive.** Frappe masks only returned values. Filters, `order_by` and aggregates run on the real values of masked fields: an equality filter confirms a hidden value, range filters count real values, sorting follows real values, and `SUM` and `MAX` return them. Filters on above-permlevel fields do raise `PermissionError`. (Spike 0.3.)
+    - Any later aggregate or group-by feature follows the same rule.
   - A Link (`xDoc`) or child-table load starts only from a source field that is readable and unmasked for that row. Otherwise the derived field gets the same sentinel as its source. `execution/graph.py` sets these derived sentinels from the `Row`.
 
 ### AD-7: Links and children are authorized on their own

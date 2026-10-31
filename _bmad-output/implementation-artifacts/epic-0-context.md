@@ -26,6 +26,7 @@ Measure the two riskiest architecture bets on a real Frappe v16 + ERPNext site b
 - **Masking is metadata-driven.** The masked set is `meta.get_masked_fields(parenttype=...)` combined with a fresh per-request computation from the user's current roles (via `meta.get_permlevel_access("mask", ...)`), because Frappe caches masked fields per user and may not clear that cache when roles change. Masked values become `null` plus a `MASKED` error in the API, never compared against placeholder strings.
 - Frappe v16 masks with type-specific placeholders, for example `XXXXXXXX` by default, `XX-XX-XXXX` for dates, and partial values for phone and email.
 - **AD-4 outcome (Spikes 0.1 and 0.2):** the full-parity check stays. The default scan budget is lowered from 2,000 to 200 and applied to the architecture and Stories 1.2 and 2.3.
+- **AD-5 outcome (Spike 0.3):** AD-5 is kept. The architecture now records why the fresh-computation union is required, the session-user and `parent_doctype` rules (AD-2), the Administrator special case, and that `FORBIDDEN` comes from metadata. AD-6's filter and sort rule now cites the observed leaks.
 - Useful v16 APIs: `IntegrationTestCase.assertQueryCount`, `frappe.has_permission(..., ignore_share_permissions=...)`, `frappe.permissions.has_user_permission`, `frappe.model.utils.mask.mask_field_value`.
 
 ## Cross-Story Dependencies
