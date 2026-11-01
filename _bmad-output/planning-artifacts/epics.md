@@ -257,6 +257,18 @@ So that every later story builds on a green, permission-safe baseline.
 **When** GitHub Actions runs
 **Then** it provisions MariaDB 11.8 and Redis, installs Frappe v16.53.0 and ERPNext v16.52.1, and runs `bench run-tests --app docweave` green
 
+**Given** the CI test job
+**When** it gets its bench
+**Then** it uses the dev image named in `.devcontainer/docker-compose.yml` (same digest as codespaces), with no `bench init` or `get-app` in CI and no second image or second set of pins
+**And** on a pull request that changes `.devcontainer/`, the tests run against the image built in that PR, not the published one
+
+**CI approach (decided 2026-11-01):**
+- Reuse the dev image (`ghcr.io/arieradle/docweave-dev`). Read its reference from `docker-compose.yml`, as the dev-image workflow's "Check that the compose image exists" step does.
+- MariaDB 11.8 and Redis run as GitHub Actions service containers, matching the compose stack.
+- Run the test steps with `docker run --user vscode`, mounting the checkout. The bench belongs to `vscode` (uid 1000); a `container:` job runs as root and clashes with the workspace permissions.
+- Each run creates a throwaway site, installs DocWeave from the checkout and runs the tests. If creating the site with ERPNext becomes the bottleneck, cache a database dump keyed by the image digest and restore it.
+- A separate CI image is not needed. If CI ever must differ from the dev image, add a `ci` target to the same Dockerfile, so it keeps the same pins.
+
 ### Story 1.2: DocWeave Settings and the access gate
 
 As a Frappe administrator,
