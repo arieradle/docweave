@@ -3,8 +3,18 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: pip
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      python:
+        patterns: ["*"]
+    ignore:
+      # Pins are chosen in the specs; major bumps need a deliberate story.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
