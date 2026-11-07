@@ -58,6 +58,7 @@ Arrows are the only allowed import directions. `execution` and `schema` never im
     - Everywhere outside `adapter/`: `frappe.get_meta`, `frappe.cache`, `frappe.logger`, `frappe._`, `frappe.session.user`, `frappe.get_roles`, `frappe.utils.get_system_timezone`.
     - In `api.py` only: `frappe.whitelist`, `frappe.local.request`, `frappe.local.message_log`, `frappe.db.rollback`, `frappe.log_error`.
     - In `hooks.py` and `schema/cache.py` only: `frappe.db.after_commit`, `frappe.clear_cache`.
+    - In `docweave/doctype/**` only (DocType controllers, amended in Story 1.2): `frappe.model.document.Document`, `frappe.throw`.
   - **Inside `adapter/`:**
     - Data is read only through `_authorized_query` (AD-2).
     - `adapter/permission.py` may call `frappe.get_doc` and `frappe.has_permission`, solely to evaluate AD-4. Loaded documents never leave that module.

@@ -1,0 +1,116 @@
+{
+ "actions": [],
+ "creation": "2026-11-07 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "allow_administrator",
+  "access_section",
+  "allowed_roles",
+  "exposed_section",
+  "exposed_doctypes",
+  "limits_section",
+  "max_page_size",
+  "scan_budget",
+  "max_depth",
+  "child_fanout_estimate",
+  "max_child_rows"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "The GraphQL endpoint refuses every request while this is off.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_administrator",
+   "fieldtype": "Check",
+   "label": "Allow Administrator"
+  },
+  {
+   "fieldname": "access_section",
+   "fieldtype": "Section Break",
+   "label": "Access"
+  },
+  {
+   "description": "Leave empty to allow any Desk User. Website Users are never allowed.",
+   "fieldname": "allowed_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Allowed Roles",
+   "options": "Has Role"
+  },
+  {
+   "fieldname": "exposed_section",
+   "fieldtype": "Section Break",
+   "label": "Exposed DocTypes"
+  },
+  {
+   "fieldname": "exposed_doctypes",
+   "fieldtype": "Table",
+   "label": "Exposed DocTypes",
+   "options": "DocWeave Exposed DocType"
+  },
+  {
+   "fieldname": "limits_section",
+   "fieldtype": "Section Break",
+   "label": "Limits"
+  },
+  {
+   "default": "100",
+   "fieldname": "max_page_size",
+   "fieldtype": "Int",
+   "label": "Max Page Size"
+  },
+  {
+   "default": "200",
+   "fieldname": "scan_budget",
+   "fieldtype": "Int",
+   "label": "Scan Budget"
+  },
+  {
+   "default": "8",
+   "fieldname": "max_depth",
+   "fieldtype": "Int",
+   "label": "Max Depth"
+  },
+  {
+   "default": "50",
+   "fieldname": "child_fanout_estimate",
+   "fieldtype": "Int",
+   "label": "Child Fanout Estimate"
+  },
+  {
+   "default": "10000",
+   "fieldname": "max_child_rows",
+   "fieldtype": "Int",
+   "label": "Max Child Rows"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "DocWeave",
+ "name": "DocWeave Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -17,3 +17,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-installable-app-with-ci-and-boundary-guard.md`
   summary: Add an automated test for install-app.sh's idempotent rerun and its refusal to touch a foreign apps/docweave.
   evidence: Story 1.1 review: CI only exercises the fresh-install path; the rerun and refusal paths were verified by hand only.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-docweave-settings-and-the-access-gate.md`
+  summary: Decide whether DocWeave Settings should cap the five limits and block sensitive DocTypes (User, DocPerm, virtual DocTypes) from the exposed list.
+  evidence: Story 1.2 review (unverified, would be medium if admins are untrusted): a System Manager can set limits to billions or expose core security DocTypes; only a floor of 1 and Settings/child/Single are checked today.
