@@ -1,0 +1,98 @@
+# Runs the DocWeave app's tests inside the dev image, against MariaDB 11.8 and
+# Redis service containers, and runs pre-commit (ruff).
+#
+# The bench comes from the dev image named in .devcontainer/docker-compose.yml
+# (the same digest codespaces use), or, when a pull request changes
+# .devcontainer/, from the image built in that PR. There is no bench init, no
+# get-app, no second image and no second set of version pins here. Everything
+# else is scripts/ci-test.sh, which runs inside the image.
+#
+# "tests" is meant to be a required check for main (README, "DocWeave app").
+# Actions are pinned to commit SHAs.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      # Hostnames match what the dev image's common_site_config.json expects.
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: "123"
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-start-period=10s
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+      redis-cache:
+        image: redis:7-alpine
+      redis-queue:
+        image: redis:7-alpine
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Pick the dev image
+        id: scope
+        run: |
+          build=false
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            changed="$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")"
+            echo "Changed files:"; echo "${changed}"
+            if grep -qE '^\.devcontainer/' <<<"${changed}"; then build=true; fi
+          fi
+          echo "build=${build}" >> "${GITHUB_OUTPUT}"
+          if [[ "${build}" == "true" ]]; then
+            echo "The PR touches .devcontainer/: testing on the image built in this PR."
+            echo "image=docweave-dev:pr" >> "${GITHUB_OUTPUT}"
+          else
+            image="$(sed -n 's/^    image: \(ghcr\.io\/.*\)$/\1/p' .devcontainer/docker-compose.yml)"
+            test -n "${image}" || { echo "No ghcr.io image in docker-compose.yml"; exit 1; }
+            echo "Testing on the compose image ${image}"
+            echo "image=${image}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - if: steps.scope.outputs.build == 'true'
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build the dev image from this PR
+        if: steps.scope.outputs.build == 'true'
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: docweave-dev:pr
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run the app's tests in the dev image
+        run: |
+          # The image runs as vscode, the checkout belongs to the runner user.
+          chmod -R a+rwX "${GITHUB_WORKSPACE}"
+          docker run --rm --user vscode \
+            --network "${{ job.services.mariadb.network }}" \
+            -v "${GITHUB_WORKSPACE}:/workspaces/docweave" \
+            "${{ steps.scope.outputs.image }}" \
+            bash /workspaces/docweave/scripts/ci-test.sh
+
+      - name: Pre-commit
+        if: ${{ !cancelled() }}
+        run: pipx run --spec pre-commit==4.3.0 pre-commit run --all-files

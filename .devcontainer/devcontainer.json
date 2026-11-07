@@ -32,8 +32,8 @@
     "8000": { "label": "Frappe web" },
     "9000": { "label": "Frappe socketio" }
   },
-  "onCreateCommand": "bash .devcontainer/post-create.sh",
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "onCreateCommand": "bash .devcontainer/post-create.sh && bash scripts/install-app.sh",
+  "postCreateCommand": "bash .devcontainer/post-create.sh && bash scripts/install-app.sh",
   "customizations": {
     "vscode": {
       "extensions": [

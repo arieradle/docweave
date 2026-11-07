@@ -1,0 +1,65 @@
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        files: "^docweave/"
+        exclude: "\\.(json|txt|csv|md|svg)$"
+      - id: check-merge-conflict
+        files: "^(docweave/|pyproject\\.toml$|\\.pre-commit-config\\.yaml$)"
+      - id: check-ast
+        files: "^docweave/"
+      - id: check-json
+        files: "^docweave/"
+      - id: check-toml
+        files: "^pyproject\\.toml$"
+      - id: check-yaml
+        files: "^\\.pre-commit-config\\.yaml$"
+      - id: debug-statements
+        files: "^docweave/"
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff
+        name: "Run ruff import sorter"
+        args: ["--select=I", "--fix"]
+        files: "^docweave/"
+
+      - id: ruff
+        name: "Run ruff linter"
+        files: "^docweave/"
+
+      - id: ruff-format
+        name: "Run ruff formatter"
+        files: "^docweave/"
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.4.1
+    hooks:
+      - id: mypy
+        name: "Run mypy"
+        files: "^docweave/"
+        exclude: "^docweave/tests/"
+        additional_dependencies: ["graphql-core~=3.3.0"]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        files: "^(scripts/|\\.devcontainer/).*\\.sh$"
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+        files: "^\\.github/workflows/"
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        files: "^(docweave/|scripts/|README\\.md$)"
