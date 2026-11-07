@@ -36,3 +36,30 @@ repos:
       - id: ruff-format
         name: "Run ruff formatter"
         files: "^docweave/"
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.4.1
+    hooks:
+      - id: mypy
+        name: "Run mypy"
+        files: "^docweave/"
+        exclude: "^docweave/tests/"
+        additional_dependencies: ["graphql-core~=3.3.0"]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        files: "^(scripts/|\\.devcontainer/).*\\.sh$"
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+        files: "^\\.github/workflows/"
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        files: "^(docweave/|scripts/|README\\.md$)"
