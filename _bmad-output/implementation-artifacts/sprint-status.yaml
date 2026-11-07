@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-24-2026 21:30
-last_updated: 11-07-2026 13:30
+last_updated: 11-07-2026 15:00
 project: docweave
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
 
   epic-1: in-progress
   1-1-installable-app-with-ci-and-boundary-guard: done
-  1-2-docweave-settings-and-the-access-gate: backlog
+  1-2-docweave-settings-and-the-access-gate: review
   1-3-schema-generation-from-exposed-doctypes: backlog
   1-4-schema-cache-and-invalidation: backlog
   1-5-authorized-single-document-read: backlog

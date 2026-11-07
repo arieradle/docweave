@@ -51,6 +51,10 @@ ALLOWED_BY_FILE = {
 	"schema/cache.py": ("frappe.db.after_commit", "frappe.clear_cache"),
 }
 
+# Allowed only in DocType controllers (docweave/docweave/doctype/**), amended in Story 1.2.
+DOCTYPE_DIR = "docweave/doctype/"
+ALLOWED_IN_DOCTYPE = ("frappe.model.document.Document", "frappe.throw")
+
 # Inside adapter/: allowed in one file only.
 ADAPTER_ONLY_FILE = {
 	"frappe.get_doc": "adapter/permission.py",
@@ -114,6 +118,8 @@ class _Checker(ast.NodeVisitor):
 		if self.in_adapter:
 			return
 		allowed = (*ALLOWED_EVERYWHERE, *ALLOWED_BY_FILE.get(self.rel, ()))
+		if self.rel.startswith(DOCTYPE_DIR):
+			allowed = (*allowed, *ALLOWED_IN_DOCTYPE)
 		if _matches_any(name, allowed):
 			return
 		if import_line and any(a.startswith(name + ".") for a in allowed):
@@ -303,6 +309,22 @@ class TestBoundaries(UnitTestCase):
 		self.assertViolation(
 			"import frappe\nfrappe.get_single(name)\n", "adapter/settings.py", "frappe.get_single"
 		)
+
+	def test_doctype_controller_allowance(self):
+		source = "import frappe\nfrom frappe.model.document import Document\nfrappe.throw('x')\n"
+		self.assertClean(source, "docweave/doctype/docweave_settings/docweave_settings.py")
+		self.assertClean("from frappe.model.document import Document\n", "docweave/doctype/x/x.py")
+		for rel in ("core/x.py", "schema/x.py", "adapter/query.py", "api.py", "docweave/other.py"):
+			if rel.startswith("adapter/"):
+				continue  # adapter/ is unrestricted by the allowlist, except for the banned names
+			self.assertViolation("import frappe\nfrappe.throw('x')\n", rel, "frappe.throw")
+			self.assertViolation("from frappe.model.document import Document\n", rel, "Document")
+
+	def test_doctype_controller_still_refused_other_names(self):
+		rel = "docweave/doctype/x/x.py"
+		self.assertViolation("import frappe\nfrappe.get_doc('X')\n", rel, "frappe.get_doc")
+		self.assertViolation("import frappe\nfrappe.db.set_value('X')\n", rel, "frappe.db.set_value")
+		self.assertViolation("import frappe\nfrappe.get_all('X')\n", rel, "frappe.get_all")
 
 	def test_non_frappe_code_passes(self):
 		self.assertClean("import os\nfrom pathlib import Path\nprint(os.getcwd())\n", "core/x.py")
