@@ -1,0 +1,6 @@
+app_name = "docweave"
+app_title = "DocWeave"
+app_publisher = "Arie Radle"
+app_description = "Permission-correct GraphQL API for Frappe"
+app_email = "arieradle@gmail.com"
+app_license = "mit"

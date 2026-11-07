@@ -187,3 +187,61 @@ Check the installed versions with:
 bench --version
 cd ~/frappe-bench && bench --site dev.localhost list-apps
 ```
+
+## DocWeave app
+
+The repository root is the Frappe v16 app `docweave` (`pyproject.toml`, package `docweave/`).
+Packages follow the architecture spine: `core/`, `schema/`, `execution/`, `adapter/`, `api.py`.
+Dependencies: `graphql-core~=3.3.0`. Python >= 3.14.
+
+### Install
+
+In the codespace `devcontainer.json` runs it for you after `post-create.sh`. By hand:
+
+```bash
+bash scripts/install-app.sh [SITE]   # default dev.localhost
+```
+
+It links `~/frappe-bench/apps/docweave` to this repository, installs it editable into the
+bench venv, adds it to `sites/apps.txt` and runs `install-app` on the site. It is
+idempotent, and it stops without deleting anything if `apps/docweave` is a directory or a
+symlink to somewhere else. On another bench, `bench get-app <repo>` and
+`bench --site SITE install-app docweave` work as usual.
+
+### Run tests
+
+```bash
+cd ~/frappe-bench
+bench --site dev.localhost set-config allow_tests true   # once
+bench --site dev.localhost run-tests --app docweave
+```
+
+### Pre-commit
+
+Ruff 0.14.10 (lint, import sort, format) and a few hygiene hooks, limited to `docweave/`
+and the two config files:
+
+```bash
+uvx pre-commit==4.3.0 run --all-files
+```
+
+### The AD-1 boundary rule
+
+Only `docweave/adapter/` may touch Frappe data. `docweave/tests/test_boundaries.py` walks the
+AST of every production module (everything under `docweave/` except `tests/`) and fails on any
+`frappe.*` name that the architecture's AD-1 allowlist does not list for that file, on the
+banned calls (`frappe.get_all`, `frappe.get_list`, `frappe.db.sql`, ...), including through
+aliased imports, and on dynamic access (`getattr(frappe, ...)`, `__import__`,
+`from frappe import *`). A failure names the file, line and dotted name, for example
+`docweave/schema/builder.py:12: frappe.get_all banned`.
+
+### CI
+
+`.github/workflows/ci.yml` runs on push to `main`, on pull requests and on manual dispatch.
+Job `tests` starts MariaDB 11.8 and two Redis service containers, runs
+`scripts/ci-test.sh` inside the dev image named in `.devcontainer/docker-compose.yml`
+(or, when the PR changes `.devcontainer/`, the image built in that PR), then runs
+pre-commit. There is no `bench init` or `get-app` in CI.
+
+To require it: **Settings > Rules > Rulesets > main > Require status checks to pass >
+Add checks**, add **`tests`** (it appears after the first run), and save.
